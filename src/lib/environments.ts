@@ -7,11 +7,17 @@ interface EnvironmentsConfig {
   active?: string[];
 }
 
+// js-yaml 5 throws "expected a document, but the input is empty" on blank
+// input, where v4 returned undefined. Treat a blank file as null so empty
+// configs degrade to the empty result instead of raising.
+function loadYamlFile(filePath: string): unknown {
+  const content = fs.readFileSync(filePath, "utf-8");
+  return content.trim() === "" ? null : yaml.load(content);
+}
+
 export function listActiveEnvs(deploymentDir: string): string[] {
   const envFile = path.join(deploymentDir, "environments.yml");
-  const data = yaml.load(
-    fs.readFileSync(envFile, "utf-8"),
-  ) as EnvironmentsConfig | null;
+  const data = loadYamlFile(envFile) as EnvironmentsConfig | null;
   return data?.active ?? [];
 }
 
@@ -22,10 +28,7 @@ export function parseDeploymentEnv(
   const envFile = path.join(deploymentDir, `${envName}.yml`);
   if (!fs.existsSync(envFile)) return {};
 
-  const data = yaml.load(fs.readFileSync(envFile, "utf-8")) as Record<
-    string,
-    unknown
-  > | null;
+  const data = loadYamlFile(envFile) as Record<string, unknown> | null;
   if (!data || typeof data !== "object" || Array.isArray(data)) return {};
 
   // Support nested `variables:` format ({ environment: "staging", variables: { KEY: val } })
