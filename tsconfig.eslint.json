@@ -1,0 +1,7 @@
+{
+  // Widens the build tsconfig (which excludes tests) so type-aware ESLint can
+  // see every source and test file. Used only by eslint.config.mjs.
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

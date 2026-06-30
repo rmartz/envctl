@@ -11,17 +11,26 @@
   },
   "scripts": {
     "build": "tsc",
-    "test:ts": "vitest run"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings 0 .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:ts": "vitest run",
+    "check:file-length": "node scripts/check-file-length.mjs"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^3.0.0",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
     "prettier": "^3.8.4",
     "typescript": "^5.8.3",
+    "typescript-eslint": "^8.62.1",
     "vitest": "^3.0.0"
   }
 }

@@ -1,5 +1,5 @@
 import { err, log, warn } from "./logger";
-import { VercelClient } from "./vercel-api";
+import type { VercelClient } from "./vercel-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
