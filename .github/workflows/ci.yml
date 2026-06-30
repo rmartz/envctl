@@ -64,3 +64,12 @@ jobs:
           fetch-depth: 0 # the file-length ratchet needs the merge base
       - uses: ./.github/actions/setup
       - run: pnpm run check:file-length -- --base origin/${{ github.base_ref || 'main' }}
+
+  package-pins:
+    name: Package pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm run check:package-pins

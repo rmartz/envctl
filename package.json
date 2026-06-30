@@ -19,7 +19,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:ts": "vitest run",
-    "check:file-length": "node scripts/check-file-length.mjs"
+    "check:file-length": "node scripts/check-file-length.mjs",
+    "check:package-pins": "node scripts/check-package-pins.mjs"
   },
   "dependencies": {
     "js-yaml": "^5.1.0"
