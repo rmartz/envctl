@@ -28,12 +28,6 @@ pnpm run check:package-pins # Enforce full major.minor.patch pins
 - Prefer `undefined` over `null` for absent/optional values. Use `null` only
   where an external API requires it (e.g. `js-yaml`'s `load()` returning `null`).
 - Favor `async`/`await` over `.then()` chains.
-- **Prefer enums over string-literal unions** for any domain concept with two or
-  more named states — `enum DeployTarget { Development = "development", Preview =
-"preview", Production = "production" }` rather than a `"production" | "preview"`
-  union. Keep enum members (and constant-object keys) in alphabetical order to
-  minimize merge conflicts, and make each enum string value match the serialized
-  form it maps to.
 
 ## Code Conventions
 
