@@ -2,6 +2,8 @@
 // Later milestones add their groups here (config, env, secrets, auth) without
 // touching the router or entrypoint.
 
+import { configPushCommand } from "../commands/config-push";
+
 export interface CommandContext {
   // The project root commands operate on, resolved from -C/--working-dir or CWD.
   workingDir: string;
@@ -21,10 +23,22 @@ export interface CommandGroup {
 
 export type Registry = CommandGroup[];
 
-// The live registry. Empty until command groups land in their own sub-issues;
-// the router and help output are driven entirely by whatever is listed here.
+// The live registry. The router and help output are driven entirely by whatever
+// is listed here; later milestones add their groups (env, secrets, auth).
 export function buildRegistry(): Registry {
-  return [];
+  return [
+    {
+      name: "config",
+      summary: "Manage environment variables",
+      commands: [
+        {
+          name: "push",
+          summary: "Push public (non-secret) env vars to the provider",
+          run: configPushCommand,
+        },
+      ],
+    },
+  ];
 }
 
 export function findGroup(
