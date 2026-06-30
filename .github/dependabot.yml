@@ -1,0 +1,52 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Wait 7 days after a version is published before opening an update PR, so a
+    # compromised release has time to be detected and yanked before we pull it
+    # in (supply-chain exposure reduction).
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Group only minor and patch bumps into one PR per dependency type. Major
+    # bumps match no group and are raised as individual PRs, since they are the
+    # most likely to need a code change and warrant isolated review.
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+      production-dependencies:
+        dependency-type: production
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # Action bumps are low-risk and rarely need code changes, so group all of
+    # them — major included — into a single PR.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
