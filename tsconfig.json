@@ -3,6 +3,10 @@
     "target": "ES2022",
     "module": "CommonJS",
     "lib": ["ES2022"],
+    // TypeScript 6.0 no longer auto-includes @types/* packages in the global
+    // scope; @types/node must be listed explicitly so Node globals (process,
+    // console) and built-in module declarations (fs, path, os) resolve.
+    "types": ["node"],
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,
