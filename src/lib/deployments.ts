@@ -1,5 +1,5 @@
 import { log, warn } from "./logger";
-import { VercelClient } from "./vercel-api";
+import type { VercelClient } from "./vercel-api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -24,9 +24,7 @@ export async function triggerAndWaitRedeployments(
       continue;
     }
     const deployTarget = vercelEnv === "production" ? "production" : "staging";
-    const latest = await client.getLatestDeployment(
-      deployTarget,
-    );
+    const latest = await client.getLatestDeployment(deployTarget);
     if (!latest) {
       warn(
         `No READY deployment found for '${vercelEnv}' — skipping redeployment`,

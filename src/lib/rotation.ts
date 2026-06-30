@@ -7,9 +7,8 @@ import { err, log, warn } from "./logger";
 import { detectProject } from "./project";
 import { commandExists, run as runCmd } from "./subprocess";
 import { VercelClient } from "./vercel-api";
+import type { FirebasePattern, OldFirebaseKey } from "./firebase";
 import {
-  FirebasePattern,
-  OldFirebaseKey,
   invalidateFirebaseKeys,
   initFirebase,
   rotateFirebase,

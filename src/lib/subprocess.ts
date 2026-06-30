@@ -1,4 +1,5 @@
-import { spawnSync, SpawnSyncOptions } from "child_process";
+import type { SpawnSyncOptions } from "child_process";
+import { spawnSync } from "child_process";
 
 export function run(
   cmd: string,

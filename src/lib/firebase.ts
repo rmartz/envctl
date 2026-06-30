@@ -3,7 +3,7 @@ import * as path from "path";
 
 import { err, log, warn } from "./logger";
 import { createGcpKey, deleteGcpKey, listUserManagedGcpKeys } from "./gcp";
-import { VercelClient, VercelEnvVar } from "./vercel-api";
+import type { VercelClient, VercelEnvVar } from "./vercel-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
