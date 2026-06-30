@@ -3,6 +3,8 @@
 // touching the router or entrypoint.
 
 import { configPushCommand } from "../commands/config-push";
+import { runEnvAdd, runEnvList } from "../commands/env";
+import { runInit } from "../commands/init";
 
 export interface CommandContext {
   // The project root commands operate on, resolved from -C/--working-dir or CWD.
@@ -19,6 +21,10 @@ export interface CommandGroup {
   name: string;
   summary: string;
   commands: Command[];
+  // A directly-runnable "leaf" group: `envctl <name>` with no subcommand runs
+  // this (e.g. `init`). Container groups (config, env) leave it undefined and
+  // require a subcommand instead.
+  run?: Command["run"];
 }
 
 export type Registry = CommandGroup[];
@@ -37,6 +43,28 @@ export function buildRegistry(): Registry {
           run: configPushCommand,
         },
       ],
+    },
+    {
+      name: "env",
+      summary: "Define project environments and their target mappings",
+      commands: [
+        {
+          name: "add",
+          summary: "Add an environment and its target mapping",
+          run: runEnvAdd,
+        },
+        {
+          name: "list",
+          summary: "List defined environments and their provider targets",
+          run: runEnvList,
+        },
+      ],
+    },
+    {
+      name: "init",
+      summary: "Scaffold the deployment/ config in this project",
+      commands: [],
+      run: runInit,
     },
   ];
 }
