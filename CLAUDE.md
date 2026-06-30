@@ -19,7 +19,6 @@ pnpm format                 # Prettier --write
 pnpm run format:check       # Prettier --check
 pnpm run test:ts            # Run the Vitest suite
 pnpm run check:file-length  # File-length ratchet
-pnpm run check:package-pins # Enforce full major.minor.patch pins
 ```
 
 ## TypeScript
@@ -86,8 +85,6 @@ pnpm run check:package-pins # Enforce full major.minor.patch pins
   This applies to caret (`^`) and tilde (`~`) ranges as well as exact pins. The
   `engines` field (minimum-version constraints like `node: ">=18"`) is exempt —
   it is a compatibility floor, not a dependency pin.
-
-  Enforced by `scripts/check-package-pins.mjs` (the `Package pins` CI workflow).
 
 ## Documentation
 
