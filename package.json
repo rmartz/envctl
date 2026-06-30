@@ -19,7 +19,7 @@
     "check:file-length": "node scripts/check-file-length.mjs"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^5.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
