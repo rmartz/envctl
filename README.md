@@ -14,6 +14,27 @@ pnpm build         # tsc → dist/
 pnpm run test:ts   # vitest
 ```
 
-## Distribution
+## Install
 
-envctl is installed as a personal global CLI — not a per-project dependency and not published to a public registry. An install script (and later a personal Homebrew tap) will land with the v1 milestone.
+envctl is installed as a personal global CLI — not a per-project dependency and not published to a public registry.
+
+```bash
+./install.sh
+```
+
+This builds the project and symlinks the `envctl` entrypoint into `~/.local/bin`. Override the location with `PREFIX`:
+
+```bash
+PREFIX=/usr/local/bin ./install.sh
+```
+
+The script is re-runnable — run it again any time to rebuild and refresh the symlink. Make sure the install directory is on your `PATH` (the script warns if it isn't).
+
+Then, from any project directory:
+
+```bash
+envctl --version
+envctl config push --dry-run   # preview the public-var sync for the current project
+```
+
+A personal Homebrew tap is a later milestone.
