@@ -8,11 +8,13 @@ export interface ProjectConfig {
   teamId?: string;
 }
 
-export function detectProject(): ProjectConfig {
+export function detectProject(
+  workingDir: string = process.cwd(),
+): ProjectConfig {
   const projectId = process.env.VERCEL_PROJECT_ID;
   const teamId = process.env.VERCEL_TEAM_ID ?? undefined;
 
-  const projectJsonPath = path.join(process.cwd(), ".vercel", "project.json");
+  const projectJsonPath = path.join(workingDir, ".vercel", "project.json");
   if (fs.existsSync(projectJsonPath)) {
     const data = JSON.parse(fs.readFileSync(projectJsonPath, "utf-8")) as {
       projectId?: string;
