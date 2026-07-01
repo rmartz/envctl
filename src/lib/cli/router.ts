@@ -60,6 +60,16 @@ export function route(tokens: string[], registry: Registry): RouteResult {
     return { kind: "error", message: `unknown command: ${first}` };
   }
 
+  // A runnable leaf group (e.g. `init`) with no subcommand runs directly.
+  if (second === undefined && group.run) {
+    return {
+      kind: "run",
+      group,
+      command: { name: group.name, summary: group.summary, run: group.run },
+      args: [],
+    };
+  }
+
   if (second === undefined || HELP_FLAGS.has(second)) {
     return { kind: "help", group };
   }

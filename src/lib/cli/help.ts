@@ -32,11 +32,15 @@ export function renderTopHelp(registry: Registry): string {
 
 // Renders help for a single group: its commands and their summaries.
 export function renderGroupHelp(group: CommandGroup): string {
+  const usage =
+    group.commands.length === 0 && group.run
+      ? `  envctl ${group.name}`
+      : `  envctl ${group.name} <command> [args]`;
   const lines = [
     `envctl ${group.name} — ${group.summary}`,
     "",
     "Usage:",
-    `  envctl ${group.name} <command> [args]`,
+    usage,
   ];
 
   if (group.commands.length > 0) {
