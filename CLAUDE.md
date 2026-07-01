@@ -19,13 +19,15 @@ pnpm format                 # Prettier --write
 pnpm run format:check       # Prettier --check
 pnpm run test:ts            # Run the Vitest suite
 pnpm run check:file-length  # File-length ratchet
+pnpm run check:package-pins # Verify all package.json pins are full major.minor.patch
 ```
 
 ## TypeScript
 
 - Strict mode throughout (`tsconfig` `strict: true`). No `any`, no `@ts-ignore`.
-- Prefer `undefined` over `null` for absent/optional values. Use `null` only
-  where an external API requires it (e.g. `js-yaml`'s `load()` returning `null`).
+- Prefer `undefined` over `null` for absent/optional values. Use `null` for
+  explicit "not found" sentinel returns (e.g. `getLatestDeployment()` returning
+  `VercelDeployment | null`) and where an external API requires it.
 - Favor `async`/`await` over `.then()` chains.
 
 ## Code Conventions
@@ -45,9 +47,10 @@ pnpm run check:file-length  # File-length ratchet
   hard-caps source at 480 and the `check:file-length` ratchet enforces it in CI.
   Split large files by logical concern.
 - **Test files**: use the `.test.ts` extension, under `src/__tests__/`. Keep
-  under ~300 lines (split at ~360); the ratchet hard-caps tests at 720. When a
-  suite grows large, split it into a `{module}-tests/` directory with
-  domain-specific files.
+  under ~300 lines (split at ~360); 720 is the ratchet threshold for tests —
+  oversized existing files must trend downward, and new additions cannot start
+  above it. When a suite grows large, split it into a `{module}-tests/` directory
+  with domain-specific files.
 
 ## Testing
 
@@ -85,6 +88,8 @@ pnpm run check:file-length  # File-length ratchet
   This applies to caret (`^`) and tilde (`~`) ranges as well as exact pins. The
   `engines` field (minimum-version constraints like `node: ">=18"`) is exempt —
   it is a compatibility floor, not a dependency pin.
+
+  Enforced by `scripts/check-package-pins.mjs` and the `Package pins` CI workflow.
 
 ## Documentation
 
