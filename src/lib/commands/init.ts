@@ -4,6 +4,7 @@ import type { CommandContext } from "../cli/registry";
 import { log, warn } from "../logger";
 import {
   deploymentDir,
+  envFile,
   environmentsFile,
   writeActiveEnvs,
   writeEnvFile,
@@ -21,9 +22,11 @@ export function runInit(ctx: CommandContext): void {
 
   fs.mkdirSync(deploymentDir(ctx.workingDir), { recursive: true });
   writeActiveEnvs(ctx.workingDir, ["production"]);
-  writeEnvFile(ctx.workingDir, "production", {
-    NEXT_PUBLIC_EXAMPLE: "replace-me",
-  });
+  if (!fs.existsSync(envFile(ctx.workingDir, "production"))) {
+    writeEnvFile(ctx.workingDir, "production", {
+      NEXT_PUBLIC_EXAMPLE: "replace-me",
+    });
+  }
 
   log(`Scaffolded ${envsFile} with a sample 'production' environment.`);
   log(

@@ -47,6 +47,10 @@ function parseAddArgs(args: string[]): AddArgs {
   }
 
   if (name === undefined) return err("env add requires an environment name");
+  if (name.includes("/") || name.includes(".."))
+    return err(
+      `Invalid environment name '${name}': must not contain '/' or '..'`,
+    );
   if (target === undefined)
     return err(`env add requires --target <${VALID_TARGETS.join("|")}>`);
   if (!isValidTarget(target))
