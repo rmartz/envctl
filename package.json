@@ -23,7 +23,7 @@
     "check:package-pins": "node scripts/check-package-pins.mjs"
   },
   "dependencies": {
-    "js-yaml": "^5.1.0"
+    "js-yaml": "^5.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
