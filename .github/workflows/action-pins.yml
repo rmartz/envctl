@@ -1,0 +1,28 @@
+name: Action pins
+
+# Runs only when workflow or composite-action files change, so the pin check is
+# scoped to PRs that actually touch GitHub Actions definitions.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+
+permissions:
+  contents: read
+
+jobs:
+  action-pins:
+    name: Action pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Run with node directly (no composite setup) so the check does not depend
+      # on the very actions it validates.
+      - run: node scripts/check-action-pins.mjs
