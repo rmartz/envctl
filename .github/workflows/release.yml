@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Serialize releases so two pushes can't publish concurrently.
+concurrency: release
+
+permissions:
+  contents: write # create tags and GitHub releases
+  packages: write # publish to GitHub Packages
+  issues: write # semantic-release comments on released issues
+  pull-requests: write # semantic-release comments on released PRs
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # semantic-release needs full history + tags
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - run: pnpm exec semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # @semantic-release/npm authenticates to the publishConfig registry
+          # (GitHub Packages) with this token; GITHUB_TOKEN has packages:write.
+          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}

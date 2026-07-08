@@ -4,7 +4,30 @@ A personal, `gh`-style command-line tool for managing deployment configuration a
 
 See the [Vision](https://github.com/rmartz/envctl/issues/1) for the design and desired functionality.
 
-> **Status:** early bootstrap. The provider engine (Vercel API client, Firebase/GCP key rotation, Sentry, deployments) has been ported from its predecessor (`rmartz/vercel-deploy-scripts`); the `envctl` CLI surface, in-repo config detection, and global-install packaging are tracked in the [envctl v1](https://github.com/rmartz/envctl/milestone/1) milestone.
+## Install
+
+envctl is published to GitHub Packages as `@rmartz/envctl` and installed as a personal global CLI — never a per-project dependency.
+
+**One-time setup.** GitHub Packages requires authentication (even for public packages), so add to your `~/.npmrc`:
+
+```
+@rmartz:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=<a GitHub token with the read:packages scope>
+```
+
+**Install and update:**
+
+```bash
+pnpm add -g @rmartz/envctl         # install
+pnpm add -g @rmartz/envctl@latest  # update to the newest release
+```
+
+Then, from any project directory:
+
+```bash
+envctl --version
+envctl config push --dry-run   # preview the public-var sync for the current project
+```
 
 ## Development
 
@@ -14,27 +37,6 @@ pnpm build         # tsc → dist/
 pnpm run test:ts   # vitest
 ```
 
-## Install
+## Releases
 
-envctl is installed as a personal global CLI — not a per-project dependency and not published to a public registry.
-
-```bash
-./install.sh
-```
-
-This builds the project and symlinks the `envctl` entrypoint into `~/.local/bin`. Override the location with `PREFIX`:
-
-```bash
-PREFIX=/usr/local/bin ./install.sh
-```
-
-The script is re-runnable — run it again any time to rebuild and refresh the symlink. Make sure the install directory is on your `PATH` (the script warns if it isn't).
-
-Then, from any project directory:
-
-```bash
-envctl --version
-envctl config push --dry-run   # preview the public-var sync for the current project
-```
-
-A personal Homebrew tap is a later milestone.
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/): a merge to `main` computes the next version from the Conventional Commit history, tags it, creates a GitHub release, and publishes `@rmartz/envctl` to GitHub Packages.
