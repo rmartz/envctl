@@ -94,12 +94,15 @@ pnpm run check:action-pins  # Verify GitHub Actions are SHA-pinned with version 
 
 ## GitHub Actions
 
-- **Pin every third-party action to a full commit SHA, with a semver version
-  comment** — `uses: actions/checkout@<40-char-sha> # v7.0.0`, never
-  `@v7`. The SHA pin defeats a moved-tag supply-chain attack (a compromised
-  release that force-moves a tag to a malicious commit); the `# vX.Y.Z` comment
-  lets Dependabot keep the SHA current, bumping both together. Local composite
-  actions (`./.github/actions/…`) are exempt. Enforced by
+- **Pin every third-party action to a full commit SHA with a full
+  `major.minor.patch` version comment.** Write
+  `uses: actions/checkout@<40-char-sha> # v7.0.0` — never a bare tag such as
+  `@v7`, and never a truncated comment such as `# v7`. The SHA pin defeats a
+  moved-tag supply-chain attack (a compromised release that force-moves a tag to
+  a malicious commit); the version comment lets Dependabot keep the SHA current,
+  bumping both together. Dependabot is unreliable on partial version comments,
+  so the full three-part version is required. Local composite actions
+  (`./.github/actions/…`) are exempt. Enforced by
   `scripts/check-action-pins.mjs` and the `Action pins` CI workflow.
 
 ## Documentation

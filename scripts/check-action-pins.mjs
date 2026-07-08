@@ -17,7 +17,10 @@ import * as path from "node:path";
 const SCAN_DIRS = [".github/workflows", ".github/actions"];
 const USES = /^\s*(?:-\s*)?uses:\s*(\S+)(?:\s+#\s*(.*\S))?\s*$/;
 const SHA = /^[0-9a-f]{40}$/;
-const VERSION_COMMENT = /\bv?\d+(?:\.\d+){0,2}\b/;
+// Require a FULL major.minor.patch (optionally v-prefixed, with a
+// prerelease/build suffix). Dependabot behaves inconsistently on partial
+// comments like `# v7` or `# v7.0`, so a truncated version is rejected.
+const VERSION_COMMENT = /\bv?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?\b/;
 
 function yamlFiles(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -47,7 +50,7 @@ function checkFile(file) {
         );
       } else if (!comment || !VERSION_COMMENT.test(comment)) {
         violations.push(
-          `${where}: '${ref}' lacks a version comment (e.g. '# v1.2.3') for Dependabot`,
+          `${where}: '${ref}' lacks a full major.minor.patch version comment (e.g. '# v1.2.3') for Dependabot`,
         );
       }
     });
