@@ -12,10 +12,36 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    # Group only minor and patch bumps into one PR per dependency type. Major
-    # bumps match no group and are raised as individual PRs, since they are the
-    # most likely to need a code change and warrant isolated review.
+    # Group minor and patch bumps into one PR per dependency type. Major bumps
+    # outside a version-locked family match no group and are raised as individual
+    # PRs, since they are the most likely to need a code change and warrant
+    # isolated review.
     groups:
+      # Version-locked families — sets of packages that ship on a shared version
+      # line (or whose majors are dictated by one member), so bumping one without
+      # the rest breaks the build. Grouped across ALL update types (major, minor,
+      # and patch) and listed first to win group-assignment precedence, so any
+      # bump within a family lands as one atomic PR.
+      vitest:
+        # vitest core and @vitest/* (coverage) share one version line — a
+        # coverage/core mismatch fails the suite.
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      eslint:
+        # eslint + @eslint/js share a version line; typescript-eslint and globals
+        # are the rest of the lint stack and track the eslint major.
+        patterns:
+          - "eslint"
+          - "@eslint/js"
+          - "typescript-eslint"
+          - "globals"
+      js-yaml:
+        # @types/js-yaml tracks the js-yaml runtime major; keep the runtime (prod)
+        # and its types (dev) together in one PR.
+        patterns:
+          - "js-yaml"
+          - "@types/js-yaml"
       # Split Prettier's major AND minor bumps into their own PR: a Prettier
       # version change can require reformatting even on a minor bump (see
       # trip-split#114), so it warrants isolated review. Patch bumps are trivial
