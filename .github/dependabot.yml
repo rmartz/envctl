@@ -18,27 +18,40 @@ updates:
     # isolated review.
     groups:
       # Version-locked families — sets of packages that ship on a shared version
-      # line (or whose majors are dictated by one member), so bumping one without
-      # the rest breaks the build. Grouped across ALL update types (major, minor,
-      # and patch) and listed first to win group-assignment precedence, so any
-      # bump within a family lands as one atomic PR.
+      # line, so bumping one without the rest breaks the build. Listed first to
+      # win group-assignment precedence.
+      #
+      # Same-scope families (all dev, or all prod) are restricted to `major`.
+      # Their minor/patch bumps are already kept in lockstep by the catch-all
+      # dev-dependencies / production-dependencies group (one PR per scope), so
+      # only majors — which fall outside those minor/patch groups — need a family
+      # group to avoid being split into standalone per-package PRs. This keeps the
+      # steady minor/patch stream consolidated instead of one PR per family.
+      #
+      # A family that crosses the dev/prod split (js-yaml) keeps ALL update types:
+      # dev-dependencies and production-dependencies are separate PRs, so only the
+      # family group holds its members together for minor/patch as well.
       vitest:
         # vitest core and @vitest/* (coverage) share one version line — a
-        # coverage/core mismatch fails the suite.
+        # coverage/core mismatch fails the suite. All-dev, so major only.
         patterns:
           - "vitest"
           - "@vitest/*"
+        update-types:
+          - "major"
       eslint:
         # eslint + @eslint/js share a version line; typescript-eslint and globals
-        # are the rest of the lint stack and track the eslint major.
+        # track the eslint major. All-dev, so major only.
         patterns:
           - "eslint"
           - "@eslint/js"
           - "typescript-eslint"
           - "globals"
+        update-types:
+          - "major"
       js-yaml:
-        # @types/js-yaml tracks the js-yaml runtime major; keep the runtime (prod)
-        # and its types (dev) together in one PR.
+        # @types/js-yaml tracks the js-yaml runtime major. Crosses dev/prod, so
+        # keep ALL update types to hold runtime (prod) + types (dev) together.
         patterns:
           - "js-yaml"
           - "@types/js-yaml"
