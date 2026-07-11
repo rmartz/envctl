@@ -11,8 +11,6 @@ interface PullOptions {
   env: string;
   // Absolute path to the dotenv file to write.
   out: string;
-  // Absolute project root the pull runs in (from -C/--working-dir or CWD).
-  workingDir: string;
 }
 
 export const PULL_USAGE = `Usage: envctl env pull [OPTIONS]
@@ -48,7 +46,7 @@ export function parsePullArgs(args: string[], workingDir: string): PullOptions {
     }
   }
 
-  return { env, out: path.resolve(workingDir, out), workingDir };
+  return { env, out: path.resolve(workingDir, out) };
 }
 
 // `envctl env pull` — pull a Vercel environment's variables into a local dotenv

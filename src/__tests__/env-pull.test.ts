@@ -23,6 +23,18 @@ describe("parsePullArgs", () => {
     expect(opts.env).toBe("staging");
     expect(opts.out).toBe(path.join("/proj", "local.env"));
   });
+
+  it("throws FatalError for an unknown flag", () => {
+    expect(() => parsePullArgs(["--unknown"], "/proj")).toThrow(FatalError);
+  });
+
+  it("throws FatalError when --env has no following value", () => {
+    expect(() => parsePullArgs(["--env"], "/proj")).toThrow(FatalError);
+  });
+
+  it("throws FatalError when --out has no following value", () => {
+    expect(() => parsePullArgs(["--out"], "/proj")).toThrow(FatalError);
+  });
 });
 
 describe("runEnvPull", () => {
