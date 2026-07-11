@@ -70,8 +70,9 @@ describe("runEnvPull", () => {
         "pull",
         path.join(workingDir, ".env.local"),
         "--environment=development",
+        "--yes",
       ],
-      { cwd: workingDir },
+      expect.objectContaining({ cwd: workingDir }),
     );
   });
 
@@ -81,9 +82,24 @@ describe("runEnvPull", () => {
     runEnvPull(ctx(), ["--env", "staging", "--out", "s.env"]);
     expect(run).toHaveBeenCalledWith(
       "vercel",
-      ["env", "pull", path.join(workingDir, "s.env"), "--environment=preview"],
-      { cwd: workingDir },
+      [
+        "env",
+        "pull",
+        path.join(workingDir, "s.env"),
+        "--environment=preview",
+        "--yes",
+      ],
+      expect.objectContaining({ cwd: workingDir }),
     );
+  });
+
+  it("sets VERCEL_NON_INTERACTIVE=1 to prevent interactive prompts (e.g. overwrite)", () => {
+    linkProject();
+    const run = vi.spyOn(subprocess, "run").mockReturnValue("");
+    runEnvPull(ctx(), []);
+    expect(run.mock.calls[0][2]?.env).toMatchObject({
+      VERCEL_NON_INTERACTIVE: "1",
+    });
   });
 
   it("errors (and does not run vercel) when the Vercel CLI is absent", () => {

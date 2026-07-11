@@ -51,8 +51,9 @@ export function parsePullArgs(args: string[], workingDir: string): PullOptions {
 
 // `envctl env pull` — pull a Vercel environment's variables into a local dotenv
 // file. Wraps the Vercel CLI (it owns decryption + escaping); preflights that
-// the CLI is present and the directory is a linked Vercel project so the CLI
-// never drops into an interactive prompt.
+// the CLI is present and the directory is a linked Vercel project, and passes
+// `--yes` + `VERCEL_NON_INTERACTIVE=1` so the CLI never prompts (e.g. on
+// overwrite).
 export function runEnvPull(ctx: CommandContext, args: string[]): void {
   const opts = parsePullArgs(args, ctx.workingDir);
 
@@ -70,9 +71,14 @@ export function runEnvPull(ctx: CommandContext, args: string[]): void {
   const target = vercelTarget(opts.env);
   log(`Pulling '${opts.env}' (${target}) into ${opts.out}...`);
   try {
-    run("vercel", ["env", "pull", opts.out, `--environment=${target}`], {
-      cwd: ctx.workingDir,
-    });
+    run(
+      "vercel",
+      ["env", "pull", opts.out, `--environment=${target}`, "--yes"],
+      {
+        cwd: ctx.workingDir,
+        env: { ...process.env, VERCEL_NON_INTERACTIVE: "1" },
+      },
+    );
   } catch (error) {
     err(
       `vercel env pull failed: ${error instanceof Error ? error.message : String(error)}`,
