@@ -27,6 +27,7 @@ Then, from any project directory:
 ```bash
 envctl --version
 envctl config push --dry-run   # preview the public-var sync for the current project
+envctl env pull                # write .env.local from the development environment
 ```
 
 ## Development

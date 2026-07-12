@@ -5,6 +5,7 @@
 import { runAuthStatus } from "../commands/auth";
 import { configPushCommand } from "../commands/config-push";
 import { runEnvAdd, runEnvList } from "../commands/env";
+import { runEnvPull } from "../commands/env-pull";
 import { runInit } from "../commands/init";
 
 export interface CommandContext {
@@ -58,6 +59,11 @@ export function buildRegistry(): Registry {
           name: "list",
           summary: "List defined environments and their provider targets",
           run: runEnvList,
+        },
+        {
+          name: "pull",
+          summary: "Pull an environment's vars into a local dotenv file",
+          run: runEnvPull,
         },
       ],
     },
