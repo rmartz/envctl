@@ -1,3 +1,4 @@
+import { resolveSentryToken } from "./auth";
 import { err, log, warn } from "./logger";
 import type { VercelClient } from "./vercel-api";
 
@@ -20,7 +21,7 @@ async function sentryRequest<T>(
   method = "GET",
   body?: unknown,
 ): Promise<T> {
-  const token = process.env.SENTRY_AUTH_TOKEN;
+  const token = resolveSentryToken();
   if (!token) err("SENTRY_AUTH_TOKEN is required for Sentry key rotation");
 
   const base = process.env.SENTRY_URL ?? "https://sentry.io";
@@ -52,7 +53,7 @@ export async function rotateSentry(
 ): Promise<string> {
   log("Rotating Sentry client key...");
 
-  if (!process.env.SENTRY_AUTH_TOKEN)
+  if (!resolveSentryToken())
     err("SENTRY_AUTH_TOKEN is required for Sentry rotation");
 
   const org = sentryOrgOverride ?? process.env.SENTRY_ORG;
@@ -137,7 +138,7 @@ export async function initSentry(
 ): Promise<void> {
   log("Initializing Sentry DSN...");
 
-  if (!process.env.SENTRY_AUTH_TOKEN)
+  if (!resolveSentryToken())
     err("SENTRY_AUTH_TOKEN is required for --init sentry");
 
   const org = sentryOrgOverride ?? process.env.SENTRY_ORG;
