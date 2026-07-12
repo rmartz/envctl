@@ -2,6 +2,7 @@
 // Later milestones add their groups here (config, env, secrets, auth) without
 // touching the router or entrypoint.
 
+import { runAuthStatus } from "../commands/auth";
 import { configPushCommand } from "../commands/config-push";
 import { runEnvAdd, runEnvList } from "../commands/env";
 import { runEnvPull } from "../commands/env-pull";
@@ -71,6 +72,17 @@ export function buildRegistry(): Registry {
       summary: "Scaffold the deployment/ config in this project",
       commands: [],
       run: runInit,
+    },
+    {
+      name: "auth",
+      summary: "Inspect provider credentials",
+      commands: [
+        {
+          name: "status",
+          summary: "Show which providers are authenticated and how",
+          run: runAuthStatus,
+        },
+      ],
     },
   ];
 }
