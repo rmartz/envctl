@@ -22,7 +22,10 @@ async function sentryRequest<T>(
   body?: unknown,
 ): Promise<T> {
   const token = resolveSentryToken();
-  if (!token) err("SENTRY_AUTH_TOKEN is required for Sentry key rotation");
+  if (!token)
+    err(
+      "Sentry auth token is required for Sentry key rotation — set SENTRY_AUTH_TOKEN or run `sentry-cli login`",
+    );
 
   const base = process.env.SENTRY_URL ?? "https://sentry.io";
   const res = await fetch(`${base}/api/0${path}`, {
@@ -54,7 +57,9 @@ export async function rotateSentry(
   log("Rotating Sentry client key...");
 
   if (!resolveSentryToken())
-    err("SENTRY_AUTH_TOKEN is required for Sentry rotation");
+    err(
+      "Sentry auth token is required for Sentry rotation — set SENTRY_AUTH_TOKEN or run `sentry-cli login`",
+    );
 
   const org = sentryOrgOverride ?? process.env.SENTRY_ORG;
   const project = sentryProjectOverride ?? process.env.SENTRY_PROJECT;
@@ -139,7 +144,9 @@ export async function initSentry(
   log("Initializing Sentry DSN...");
 
   if (!resolveSentryToken())
-    err("SENTRY_AUTH_TOKEN is required for --init sentry");
+    err(
+      "Sentry auth token is required for --init sentry — set SENTRY_AUTH_TOKEN or run `sentry-cli login`",
+    );
 
   const org = sentryOrgOverride ?? process.env.SENTRY_ORG;
   const project = sentryProjectOverride ?? process.env.SENTRY_PROJECT;
