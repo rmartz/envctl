@@ -19,7 +19,46 @@ export default tseslint.config(
       },
     },
     rules: {
-      "@typescript-eslint/consistent-type-imports": "error",
+      // Type-only imports go through a module-level `import type` (never inline
+      // `import("…").Type`, banned below via no-restricted-syntax).
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { fixStyle: "separate-type-imports" },
+      ],
+      "@typescript-eslint/no-import-type-side-effects": "error",
+      // Static enforcement of the prose Code Conventions in CLAUDE.md that
+      // /review used to catch by eye. Zero current violations — drift insurance.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ExportDefaultDeclaration",
+          message: "Use a named export, not a default export.",
+        },
+        {
+          selector: "TSImportType",
+          message:
+            'No inline import("…").Type — use a module-level `import type { … } from "…"`.',
+        },
+        {
+          selector: "CallExpression > FunctionExpression.callee",
+          message:
+            "No IIFEs — extract a named helper or compute the value with a plain expression.",
+        },
+        {
+          selector: "CallExpression > ArrowFunctionExpression.callee",
+          message:
+            "No IIFEs — extract a named helper or compute the value with a plain expression.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='then']",
+          message: "Favor async/await over a .then() chain.",
+        },
+        {
+          selector:
+            "CallExpression[callee.name='test'][callee.type='Identifier']",
+          message: "Use it() from Vitest, not test().",
+        },
+      ],
       // Source-level half of the file-length ratchet (CI backstop is
       // scripts/check-file-length.mjs). Hard ceiling at 2x the 240 split point.
       "max-lines": [

@@ -25,22 +25,24 @@ pnpm run check:action-pins  # Verify GitHub Actions are SHA-pinned with version 
 
 ## TypeScript
 
-- Strict mode throughout (`tsconfig` `strict: true`). No `any`, no `@ts-ignore`.
-- Prefer `undefined` over `null` for absent/optional values. Use `null` for
-  explicit "not found" sentinel returns (e.g. `getLatestDeployment()` returning
-  `VercelDeployment | null`) and where an external API requires it.
-- Favor `async`/`await` over `.then()` chains.
+- Strict mode throughout (`tsconfig` `strict: true`); no `any` or `@ts-ignore`
+  (ESLint-enforced).
+- Prefer `undefined` over `null` for absent/optional values (a manual judgment,
+  not ESLint-enforced). Use `null` for explicit "not found" sentinel returns
+  (e.g. `getLatestDeployment()` returning `VercelDeployment | null`) and where an
+  external API requires it.
+- Favor `async`/`await` over `.then()` chains (ESLint-enforced).
 
 ## Code Conventions
 
-- Use **named exports**, not default exports.
-- **No IIFEs.** Extract the logic into a named helper or compute the value with a
-  plain expression.
+ESLint enforces these (see `eslint.config.mjs`): **named exports** (no default
+export), **no IIFEs**, and module-level `import type { … }` over inline
+`import("…").Type`. A dynamic `await import("…")` for conditionally loaded
+modules is still fine.
+
 - **No spurious variables.** Do not assign a value only to return it on the next
-  line — return the expression directly.
-- **No inline `import("…").Type` annotations.** Use module-level
-  `import type { … } from "…"`. A dynamic `await import("…")` for conditionally
-  loaded modules is fine.
+  line — return the expression directly. (Not ESLint-enforced — a review
+  judgment.)
 
 ## File Organization
 
@@ -55,7 +57,7 @@ pnpm run check:action-pins  # Verify GitHub Actions are SHA-pinned with version 
 
 ## Testing
 
-- Use `describe`/`it` from Vitest (not `test`).
+- Use `describe`/`it` from Vitest; the `test()` alias is ESLint-banned.
 - Test fixture generators use `make{Domain}()` (e.g. `makeProject()`), kept in
   `src/__tests__/fixtures.ts` or a co-located fixtures module.
 - **Control inputs and outputs.** Assert against explicit, non-default values, so
