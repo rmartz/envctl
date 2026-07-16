@@ -35,6 +35,12 @@ import { readFileSync } from "node:fs";
 
 const baseRef = process.argv[2] ?? "origin/main";
 const minDays = Number(process.env.RELEASE_AGE_MIN_DAYS ?? "7");
+if (!isFinite(minDays) || minDays <= 0) {
+  console.error(
+    `RELEASE_AGE_MIN_DAYS must be a positive finite number (got: ${process.env.RELEASE_AGE_MIN_DAYS ?? ""})`,
+  );
+  process.exit(1);
+}
 const minMs = minDays * 24 * 60 * 60 * 1000;
 
 const SEMVER_VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
@@ -75,10 +81,16 @@ function parseKey(key) {
 /** Publish timestamp (ms) for name@version, or undefined if unresolvable. */
 async function publishedAt(name, version) {
   const url = `https://registry.npmjs.org/${name.replace("/", "%2F")}`;
-  const res = await fetch(url);
-  if (!res.ok) return undefined;
-  const time = (await res.json()).time?.[version];
-  return time ? Date.parse(time) : undefined;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return undefined;
+    const time = (await res.json()).time?.[version];
+    return time ? Date.parse(time) : undefined;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const headLock = readFileSync("pnpm-lock.yaml", "utf8");
