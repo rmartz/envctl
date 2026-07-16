@@ -21,6 +21,7 @@ pnpm run test:ts            # Run the Vitest suite
 pnpm run check:file-length  # File-length ratchet
 pnpm run check:package-pins # Verify all package.json pins are full major.minor.patch
 pnpm run check:action-pins  # Verify GitHub Actions are SHA-pinned with version comments
+pnpm run check:release-age  # Fail lockfile bumps younger than the cooldown window
 ```
 
 ## TypeScript
