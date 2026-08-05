@@ -21,6 +21,12 @@ describe("runPush — dry run", () => {
     process.env.VERCEL_TOKEN = "test-token";
     process.env.VERCEL_PROJECT_ID = "prj_test";
     delete process.env.VERCEL_TEAM_ID;
+    // Point the Vercel CLI auth lookup at a nonexistent file so the no-token
+    // case cannot fall back to a real `vercel login` on the host.
+    process.env.__VERCEL_CLI_AUTH_PATH = path.join(
+      tmpDir,
+      "no-vercel-auth.json",
+    );
   });
 
   afterEach(() => {
