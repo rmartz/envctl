@@ -51,10 +51,14 @@ async function dispatchRotation(
       });
     }
     if (init === "firebase" || init === "all") {
+      const seenTargets = new Set<string>();
       for (const envName of envList) {
+        const target = vercelTarget(envName);
+        if (seenTargets.has(target)) continue;
+        seenTargets.add(target);
         const vars = parseDeploymentEnv(deploymentDir, envName);
         await rotateKeysRun({
-          targetEnv: vercelTarget(envName),
+          targetEnv: target,
           invalidateKeys,
           workingDir,
           init: "firebase",

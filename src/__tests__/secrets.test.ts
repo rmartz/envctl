@@ -174,6 +174,26 @@ describe("runSecrets — init", () => {
     );
   });
 
+  it("init firebase deduplicates calls when two env names share a Vercel target", async () => {
+    // staging and preview both map to the "preview" Vercel target; only one
+    // Firebase init call should be dispatched for that target.
+    const dir = makeDeploymentDir(tmpDir, ["staging", "preview"], {
+      staging: FIREBASE_VARS,
+      preview: FIREBASE_VARS,
+    });
+    await runSecrets(makeOpts(dir, { init: "firebase" }));
+    // 1 for the deduplicated "preview" target + 1 for "development" (devSource)
+    expect(runSpy).toHaveBeenCalledTimes(2);
+    expect(runSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ targetEnv: "preview", init: "firebase" }),
+    );
+    expect(runSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ targetEnv: "development", init: "firebase" }),
+    );
+  });
+
   it("init firebase --env production runs a single per-env call", async () => {
     const dir = makeDeploymentDir(tmpDir, ["production"], {
       production: FIREBASE_VARS,
