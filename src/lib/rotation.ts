@@ -21,6 +21,8 @@ import { triggerAndWaitRedeployments } from "./deployments";
 export interface RotationOptions {
   targetEnv: string;
   invalidateKeys: boolean;
+  /** Project root for `.vercel/project.json` detection. Defaults to CWD. */
+  workingDir?: string;
   init?: "all" | "firebase" | "sentry";
   /** SA email for --init firebase. Falls back to FIREBASE_SA_EMAIL env var. */
   firebaseSaEmail?: string;
@@ -65,7 +67,7 @@ export async function run(opts: RotationOptions): Promise<void> {
   const token = resolveVercelToken();
   checkPrereqs(needsGcloud, token);
 
-  const project = detectProject();
+  const project = detectProject(opts.workingDir);
   log(
     `Project: ${project.projectId}${project.teamId ? ` (team: ${project.teamId})` : ""}`,
   );

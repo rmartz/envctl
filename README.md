@@ -28,7 +28,16 @@ Then, from any project directory:
 envctl --version
 envctl config push --dry-run   # preview the public-var sync for the current project
 envctl env pull                # write .env.local from the development environment
+envctl secrets rotate          # atomically rotate Firebase/Sentry secrets and redeploy
+envctl secrets init firebase   # bootstrap secrets for a fresh project (auto-detects if omitted)
 ```
+
+`secrets rotate` mints each new credential, redeploys, then invalidates the old
+one, so the project is never left without a working credential. It relies on the
+same auth as the rest of the CLI — `VERCEL_TOKEN` or `vercel login`,
+`SENTRY_AUTH_TOKEN`, and an authenticated `gcloud` for Firebase key minting (run
+`envctl auth status` to check). Pass `--no-invalidate` to keep the old keys or
+`--refresh-previews` to redeploy active PR previews afterward.
 
 ## Development
 
