@@ -34,7 +34,7 @@
     "check:release-age": "node scripts/check-release-age.mjs"
   },
   "dependencies": {
-    "js-yaml": "^5.2.2"
+    "js-yaml": "^5.2.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
