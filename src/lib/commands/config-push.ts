@@ -12,28 +12,13 @@ import { err, log, warn } from "../logger";
 import { detectProject } from "../project";
 import { VercelClient } from "../vercel-api";
 import { parsePushArgs, type PushOptions } from "./config-push-args";
+import {
+  assertDeploymentPrereqs,
+  findDevSource,
+  resolveEnvList,
+} from "./env-plan";
 
 export type { PushOptions };
-
-// Returns the first active env whose Vercel target is "preview" (i.e. staging).
-// The development target always mirrors this source for its public vars.
-function findDevSource(activeEnvs: string[]): string | undefined {
-  return activeEnvs.find((e) => vercelTarget(e) === "preview");
-}
-
-function checkPrereqs(
-  opts: PushOptions,
-  token: string | undefined,
-): asserts token is string {
-  if (!token)
-    err(
-      "No Vercel token found. Set VERCEL_TOKEN or run 'vercel login' to authenticate.",
-    );
-  if (!fs.existsSync(opts.deploymentDir))
-    err(`Deployment directory not found: ${opts.deploymentDir}`);
-  const envsFile = path.join(opts.deploymentDir, "environments.yml");
-  if (!fs.existsSync(envsFile)) err(`environments.yml not found: ${envsFile}`);
-}
 
 // Resolves which active environments to push and whether the implicit
 // development target should be synced, validating the requested --env.
@@ -42,28 +27,10 @@ function resolvePlan(
   activeEnvs: string[],
   devSource: string | undefined,
 ): { envList: string[]; syncDev: boolean } {
-  let envList: string[];
-  if (opts.targetEnv === "all") {
-    envList = activeEnvs;
-  } else if (opts.targetEnv === "development") {
-    if (!devSource)
-      err(
-        "--env development requires a staging or preview environment in environments.yml",
-      );
-    envList = [];
-  } else {
-    if (!activeEnvs.includes(opts.targetEnv)) {
-      err(
-        `--env '${opts.targetEnv}' not in active environments: ${activeEnvs.join(", ")}`,
-      );
-    }
-    envList = [opts.targetEnv];
-  }
-
+  const envList = resolveEnvList(activeEnvs, opts.targetEnv, devSource);
   const syncDev =
     (opts.targetEnv === "all" || opts.targetEnv === "development") &&
     devSource !== undefined;
-
   return { envList, syncDev };
 }
 
@@ -172,7 +139,7 @@ async function pushDev(
 // is directly unit-testable (mirroring the predecessor's `sync-env` run()).
 export async function runPush(opts: PushOptions): Promise<void> {
   const token = resolveVercelToken();
-  checkPrereqs(opts, token);
+  assertDeploymentPrereqs(opts.deploymentDir, token);
 
   const project = detectProject(opts.workingDir);
   log(

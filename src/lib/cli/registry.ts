@@ -7,6 +7,7 @@ import { configPushCommand } from "../commands/config-push";
 import { runEnvAdd, runEnvList } from "../commands/env";
 import { runEnvPull } from "../commands/env-pull";
 import { runInit } from "../commands/init";
+import { runSecretsInit, runSecretsRotate } from "../commands/secrets";
 
 export interface CommandContext {
   // The project root commands operate on, resolved from -C/--working-dir or CWD.
@@ -72,6 +73,22 @@ export function buildRegistry(): Registry {
       summary: "Scaffold the deployment/ config in this project",
       commands: [],
       run: runInit,
+    },
+    {
+      name: "secrets",
+      summary: "Atomically rotate and bootstrap provider secrets",
+      commands: [
+        {
+          name: "rotate",
+          summary: "Rotate Firebase/Sentry secrets, redeploy, then invalidate",
+          run: runSecretsRotate,
+        },
+        {
+          name: "init",
+          summary: "Bootstrap provider secrets for a fresh project",
+          run: runSecretsInit,
+        },
+      ],
     },
     {
       name: "auth",
