@@ -9,6 +9,11 @@ description: Reference pages for envctl's scripts and subsystems.
 Reference pages for envctl's scripts and subsystems, in Google's Open Knowledge
 Format (OKF). One page per script or subsystem.
 
+## Conventions
+
+- [OKF documentation format](okf-format.md) — what OKF is, how this bundle uses
+  it, and a pointer to the authoritative Google spec.
+
 ## Scripts
 
 - [check-agents-md](check-agents-md.md) — enforces the AGENTS.md / CLAUDE.md
