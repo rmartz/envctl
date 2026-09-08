@@ -13,6 +13,8 @@ Format (OKF). One page per script or subsystem.
 
 - [check-agents-md](check-agents-md.md) — enforces the AGENTS.md / CLAUDE.md
   pairing convention (bare `@AGENTS.md` wrapper).
+- [check-docs](check-docs.md) — enforces OKF frontmatter and `index.md`
+  navigability across this `docs/` bundle.
 - [check-release-age](check-release-age.md) — deterministic dependency
   release-age (cooldown) CI gate.
 

@@ -23,6 +23,7 @@ pnpm run check:package-pins # Verify all package.json pins are full major.minor.
 pnpm run check:action-pins  # Verify GitHub Actions are SHA-pinned with version comments
 pnpm run check:release-age  # Fail lockfile bumps younger than the cooldown window
 pnpm run check:agents-md    # Verify every AGENTS.md pairs with a bare `@AGENTS.md` CLAUDE.md
+pnpm run check:docs         # Verify docs/ OKF frontmatter and index.md navigability
 ```
 
 ## Agent Directive Files
@@ -137,9 +138,16 @@ modules is still fine.
 - Reference pages for scripts and subsystems live under `docs/`, in Google's Open
   Knowledge Format (OKF): one markdown file per script or subsystem, each with
   YAML frontmatter (`type` required — `Script` / `Subsystem` / `Index`; `title`,
-  `description`, `resource`, `tags` recommended). Create `docs/README.md` as the
-  index when the first page is added, and cross-link related pages with plain
-  markdown links.
+  `description`, `resource`, `tags` recommended).
+- **`docs/index.md` is the bundle index** (OKF's canonical index file). Every
+  directory that holds docs has an `index.md` that links every non-index page in
+  it, and every subdirectory's `index.md` is linked from its parent's — so a
+  reader can navigate `docs/index.md` → `docs/example/index.md` →
+  `docs/example/feature.md` to reach any page. `README.md` is free for general,
+  non-index documentation. Cross-link related pages with plain markdown links.
 - When you add or non-trivially change a script under `scripts/` or a subsystem,
-  add or update its `docs/` page in the same PR. Existing undocumented code is
-  tech debt to migrate over time — this does not require unrelated backfill.
+  add or update its `docs/` page **and its `index.md` entry** in the same PR.
+  Existing undocumented code is tech debt to migrate over time — this does not
+  require unrelated backfill.
+- Enforced by `scripts/check-docs.mjs` and the `Docs` CI workflow (OKF
+  frontmatter present on every page; full `index.md` navigability).
