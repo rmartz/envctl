@@ -1,12 +1,12 @@
 ---
 type: Script
-title: check-agents-md.mjs
+title: check-agents-md
 description: Fails CI unless every AGENTS.md is paired with a companion CLAUDE.md whose only content is the bare `@AGENTS.md` import.
 resource: scripts/check-agents-md.mjs
 tags: [documentation, agents, ci, validation]
 ---
 
-# check-agents-md.mjs
+# check-agents-md
 
 Enforces the agent directive-file convention from `AGENTS.md`: directives are
 authored once, in `AGENTS.md`, and `CLAUDE.md` is a thin wrapper that imports
