@@ -32,7 +32,8 @@
     "check:package-pins": "node scripts/check-package-pins.mjs",
     "check:action-pins": "node scripts/check-action-pins.mjs",
     "check:release-age": "node scripts/check-release-age.mjs",
-    "check:agents-md": "node scripts/check-agents-md.mjs"
+    "check:agents-md": "node scripts/check-agents-md.mjs",
+    "check:docs": "node scripts/check-docs.mjs"
   },
   "dependencies": {
     "js-yaml": "^5.4.1"
