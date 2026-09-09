@@ -99,8 +99,11 @@ function main() {
     console.error("Agent directive-file convention violations:\n");
     for (const violation of violations) console.error(`  ✗ ${violation}`);
     console.error(
-      `\n${violations.length} violation(s). Fix them so that every AGENTS.md has a` +
-        ` companion CLAUDE.md whose only content is \`${IMPORT_LINE}\`.`,
+      `\n${violations.length} violation(s). Every directory must satisfy all three rules:\n` +
+        `  1. Every AGENTS.md has a companion CLAUDE.md in the same directory.\n` +
+        `  2. Every CLAUDE.md has a companion AGENTS.md in the same directory.\n` +
+        `  3. Every CLAUDE.md is a real file (not a symlink) whose only content is \`${IMPORT_LINE}\`.\n` +
+        `See AGENTS.md for the full convention.`,
     );
     process.exit(1);
   }
