@@ -37,7 +37,10 @@ one, so the project is never left without a working credential. It relies on the
 same auth as the rest of the CLI — `VERCEL_TOKEN` or `vercel login`,
 `SENTRY_AUTH_TOKEN`, and an authenticated `gcloud` for Firebase key minting (run
 `envctl auth status` to check). Pass `--no-invalidate` to keep the old keys or
-`--refresh-previews` to redeploy active PR previews afterward.
+`--refresh-previews` to redeploy active PR previews afterward. See the
+[secrets rotation engine](docs/secrets-rotation.md) for the full mint → deploy →
+verify → invalidate flow, and the [docs index](docs/index.md) for the
+[config-push](docs/config-push.md) and [environments](docs/env.md) subsystems.
 
 ## Development
 
