@@ -11,6 +11,8 @@ Format (OKF). One page per script or subsystem.
 
 ## Scripts
 
+- [check-agents-md](check-agents-md.md) — enforces the AGENTS.md / CLAUDE.md
+  pairing convention (bare `@AGENTS.md` wrapper).
 - [check-release-age](check-release-age.md) — deterministic dependency
   release-age (cooldown) CI gate.
 

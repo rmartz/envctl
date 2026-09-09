@@ -1,0 +1,32 @@
+name: Agent directive files
+
+# The checker validates the whole tree on every run, so scoping it to changes of
+# a directive file or the validator itself is sound: any add/edit/rename/delete
+# of an AGENTS.md / CLAUDE.md re-triggers it.
+on:
+  pull_request:
+    paths:
+      - "**/AGENTS.md"
+      - "**/CLAUDE.md"
+      - "scripts/check-agents-md.mjs"
+      - ".github/workflows/agents-md.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/AGENTS.md"
+      - "**/CLAUDE.md"
+      - "scripts/check-agents-md.mjs"
+      - ".github/workflows/agents-md.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  agents-md:
+    name: Agent directive files
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm run check:agents-md
