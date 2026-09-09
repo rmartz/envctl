@@ -1,12 +1,12 @@
 ---
 type: Script
-title: check-docs.mjs
+title: check-docs
 description: Fails CI unless every docs/ page has OKF frontmatter and is reachable by index.md navigation from docs/index.md.
 resource: scripts/check-docs.mjs
 tags: [documentation, okf, ci, validation]
 ---
 
-# check-docs.mjs
+# check-docs
 
 Enforces the structural integrity of the `docs/` knowledge bundle described in
 `AGENTS.md` → Documentation: every page is written in Google's Open Knowledge
