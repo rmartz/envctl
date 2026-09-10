@@ -1,7 +1,5 @@
 ---
-type: Index
-title: envctl documentation
-description: Reference pages for envctl's scripts and subsystems.
+okf_version: "0.2"
 ---
 
 # envctl documentation

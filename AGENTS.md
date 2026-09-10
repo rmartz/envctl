@@ -137,14 +137,17 @@ modules is still fine.
 - Keep documentation in sync with the code — outdated docs are worse than none.
 - Reference pages for scripts and subsystems live under `docs/`, in Google's Open
   Knowledge Format (OKF): one markdown file per script or subsystem, each with
-  YAML frontmatter (`type` required — `Script` / `Subsystem` / `Index`; `title`,
+  YAML frontmatter (`type` required — `Script` / `Subsystem`; `title`,
   `description`, `resource`, `tags` recommended).
-- **`docs/index.md` is the bundle index** (OKF's canonical index file). Every
-  directory that holds docs has an `index.md` that links every non-index page in
-  it, and every subdirectory's `index.md` is linked from its parent's — so a
-  reader can navigate `docs/index.md` → `docs/example/index.md` →
-  `docs/example/feature.md` to reach any page. `README.md` is free for general,
-  non-index documentation. Cross-link related pages with plain markdown links.
+- **`docs/index.md` is the bundle index** (OKF's canonical index file). Per OKF
+  §8 a reserved `index.md` carries **no** frontmatter — not even `type` — save an
+  optional bundle-root `okf_version` key (`docs/index.md` holds only
+  `okf_version: "0.2"`). Every directory that holds docs has an `index.md` that
+  links every non-index page in it, and every subdirectory's `index.md` is linked
+  from its parent's — so a reader can navigate `docs/index.md` →
+  `docs/example/index.md` → `docs/example/feature.md` to reach any page.
+  `README.md` is free for general, non-index documentation. Cross-link related
+  pages with plain markdown links.
 - When you add or non-trivially change a script under `scripts/` or a subsystem,
   add or update its `docs/` page **and its `index.md` entry** in the same PR.
   Existing undocumented code is tech debt to migrate over time — this does not

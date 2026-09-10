@@ -25,22 +25,29 @@ spec, not to this page. Where this page and the spec disagree, the spec wins.
 Every OKF document opens with a YAML frontmatter block. The spec reserves a small
 set of structured fields:
 
-| Field         | Required | Purpose                                                     |
-| ------------- | -------- | ----------------------------------------------------------- |
-| `type`        | **yes**  | The kind of document (e.g. `Script`, `Subsystem`, `Index`). |
-| `title`       | no       | Human-readable name.                                        |
-| `description` | no       | One-line summary, surfaced in index listings.               |
-| `resource`    | no       | The code path or artifact this page documents.              |
-| `tags`        | no       | Free-form keywords for grouping and discovery.              |
-| `timestamp`   | no       | Last-meaningful-update time.                                |
+| Field         | Required | Purpose                                            |
+| ------------- | -------- | -------------------------------------------------- |
+| `type`        | **yes**  | The kind of document (e.g. `Script`, `Subsystem`). |
+| `title`       | no       | Human-readable name.                               |
+| `description` | no       | One-line summary, surfaced in index listings.      |
+| `resource`    | no       | The code path or artifact this page documents.     |
+| `tags`        | no       | Free-form keywords for grouping and discovery.     |
+| `timestamp`   | no       | Last-meaningful-update time.                       |
 
 `type` is the only field OKF requires. envctl uses `Script` for a page that
-documents one script under `scripts/`, `Subsystem` for a broader concern (like
-this page), and `Index` for an `index.md`.
+documents one script under `scripts/` and `Subsystem` for a broader concern
+(like this page).
+
+**Index files are the one exception.** Per OKF §8, a reserved `index.md`
+carries **no** frontmatter — not even `type` — with the single exception that a
+bundle-root `index.md` MAY carry an `okf_version` key. `docs/index.md`
+therefore holds only `okf_version: "0.2"`, and the [check-docs](check-docs.md)
+gate rejects any other frontmatter key on an `index.md`.
 
 ## Navigation: `index.md`
 
 An `index.md` file may appear in any directory of the bundle, including the root.
+Unlike a content page it carries no frontmatter (see the exception above).
 It enumerates that directory's contents to support **progressive disclosure** — a
 reader (human or agent) starts at the root `index.md` and follows links down to
 the page they need, rather than being handed the whole tree at once. Its body is
@@ -66,9 +73,10 @@ tooling.
 
 ## How envctl enforces OKF
 
-- [check-docs](check-docs.md) fails CI unless every `docs/` page carries valid
-  OKF frontmatter with a `type`, and unless the whole bundle is reachable via
-  `index.md` links from `docs/index.md`.
+- [check-docs](check-docs.md) fails CI unless every non-index `docs/` page
+  carries valid OKF frontmatter with a `type` (a reserved `index.md` is exempt,
+  carrying no frontmatter beyond `okf_version`), and unless the whole bundle is
+  reachable via `index.md` links from `docs/index.md`.
 - The `docs/` convention itself — one page per script or subsystem, the required
   and recommended frontmatter fields, and the `index.md` rule — is written up in
   `AGENTS.md` → Documentation.
