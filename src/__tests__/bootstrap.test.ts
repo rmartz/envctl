@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as configPush from "../lib/commands/config-push";
 import * as envPull from "../lib/commands/env-pull";
 import * as secrets from "../lib/commands/secrets";
+import * as deployments from "../lib/deployments";
 import { runBootstrap, runBootstrapCommand } from "../lib/commands/bootstrap";
 import type { BootstrapOptions } from "../lib/commands/bootstrap-args";
 import { FatalError } from "../lib/logger";
@@ -20,6 +21,7 @@ let pushSpy: ReturnType<typeof vi.spyOn>;
 let secretsSpy: ReturnType<typeof vi.spyOn>;
 let pullSpy: ReturnType<typeof vi.spyOn>;
 let listSpy: ReturnType<typeof vi.spyOn>;
+let verifySpy: ReturnType<typeof vi.spyOn>;
 
 const FIREBASE_VARS = {
   FIREBASE_SA_EMAIL: "sa@proj.iam.gserviceaccount.com",
@@ -67,6 +69,9 @@ beforeEach(() => {
   listSpy = vi
     .spyOn(VercelClient.prototype, "listEnvVars")
     .mockResolvedValue(envRecords([]));
+  verifySpy = vi
+    .spyOn(deployments, "triggerAndWaitRedeployments")
+    .mockResolvedValue(undefined);
   // Every external tool the preflight probes is present by default.
   vi.spyOn(subprocess, "commandExists").mockReturnValue(true);
   vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -97,7 +102,7 @@ function makeOpts(
 // ─── Phase sequencing on a blank project ───────────────────────────────────────
 
 describe("runBootstrap — blank project", () => {
-  it("runs all three phases: push, init each configured secret, then pull", async () => {
+  it("runs all four phases: push, init configured secrets, pull, then verify", async () => {
     const dir = makeDeploymentDir(tmpDir, ["staging", "production"], {
       staging: { ...FIREBASE_VARS, ...SENTRY_VARS },
       production: { ...FIREBASE_VARS, ...SENTRY_VARS },
@@ -128,6 +133,7 @@ describe("runBootstrap — blank project", () => {
       "--out",
       path.join(tmpDir, ".env.local"),
     ]);
+    expect(verifySpy).toHaveBeenCalledTimes(1);
   });
 
   it("passes a named --env through to the push and secrets phases", async () => {
@@ -255,6 +261,21 @@ describe("runBootstrap — phase gating", () => {
     expect(secretsSpy).not.toHaveBeenCalled();
     expect(listSpy).not.toHaveBeenCalled();
     expect(pullSpy).not.toHaveBeenCalled();
+    expect(verifySpy).not.toHaveBeenCalled();
+  });
+
+  it("--dry-run logs the verify plan message without calling triggerAndWaitRedeployments", async () => {
+    const dir = makeDeploymentDir(tmpDir, ["production"], {
+      production: SENTRY_VARS,
+    });
+    const logSpy = vi.mocked(console.log);
+
+    await runBootstrap(makeOpts(dir, { dryRun: true }));
+
+    expect(verifySpy).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Would trigger redeployments"),
+    );
   });
 });
 

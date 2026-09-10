@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: Bootstrap
-description: One-command end-to-end setup — push public config, initialize missing secrets, and pull a local dotenv.
+description: One-command end-to-end setup — push public config, initialize missing secrets, pull a local dotenv, and verify via redeployment.
 resource: src/lib/commands/bootstrap.ts
 tags: [bootstrap, onboarding, config, secrets, dotenv, idempotent]
 ---
@@ -10,7 +10,7 @@ tags: [bootstrap, onboarding, config, secrets, dotenv, idempotent]
 
 `envctl bootstrap` configures a project end to end in one pass, so a linked but
 otherwise empty Vercel project can be brought fully online without running each
-command by hand. It composes the three existing subsystems in order:
+command by hand. It composes the existing subsystems in order:
 
 1. **Public config** — [config-push](config-push.md): upsert every public
    (non-secret) variable to its Vercel target.
@@ -18,6 +18,11 @@ command by hand. It composes the three existing subsystems in order:
    any configured Firebase / Sentry secret that is **not already present**.
 3. **Local dotenv** — [`env pull`](env.md#pulling-config-for-local-testing):
    materialize `.env.local` from the `development` environment.
+4. **Post-push verification** — trigger redeployments so running environments
+   pick up the pushed variables. On a project with no existing READY deployment
+   (the cold-start case), this phase logs a per-environment skip message rather
+   than erroring, satisfying the requirement that bootstrap explicitly reports
+   when verification is skipped.
 
 ```bash
 envctl bootstrap [OPTIONS]
@@ -53,9 +58,9 @@ Bootstrap mints **keys** for resources that already exist — a Firebase project
 with its service account, a Sentry project, a linked Vercel project. Creating the
 service account and its IAM roles from nothing is tracked separately in
 [#70](https://github.com/rmartz/envctl/issues/70). On a project with no prior
-deployment, the secrets phase pushes the credential but the verify-by-redeploy
-step is skipped until there is something to redeploy (see
-[secrets-rotation](secrets-rotation.md)).
+deployment, Phase 4 logs a per-environment skip message (`No READY deployment
+found — skipping redeployment`) rather than erroring, until there is a READY
+deployment to redeploy.
 
 ## Options
 
@@ -70,4 +75,4 @@ step is skipped until there is something to redeploy (see
 ## Related
 
 - [config-push](config-push.md), [secrets-rotation](secrets-rotation.md),
-  [env](env.md) — the three subsystems bootstrap composes.
+  [env](env.md) — the subsystems bootstrap composes across its four phases.
