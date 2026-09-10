@@ -25,7 +25,7 @@ envctl secrets rotate [OPTIONS]              # rotate existing secrets
 envctl secrets init [firebase|sentry] [OPTS] # bootstrap secrets for a fresh project
 ```
 
-Both accept `--env <name|all>` (default `all`), `--deployment-dir <path>`
+Both accept `--env <name|development|all>` (default `all`), `--deployment-dir <path>`
 (default `deployment`), `--no-invalidate`, and `--refresh-previews`. `secrets
 init` additionally takes an optional `firebase`|`sentry` positional; omitting it
 auto-detects which services to initialize.
@@ -107,19 +107,21 @@ Checked by `checkPrereqs` before any provider call:
 - A **Vercel token** — `VERCEL_TOKEN` or a `vercel login` session (see
   [auth resolution](env.md#authentication)).
 - **`gcloud`** installed and authenticated, for any Firebase flow.
-- `SENTRY_ORG` / `SENTRY_PROJECT` — required for Sentry key **invalidation**.
+- `SENTRY_AUTH_TOKEN` (or `sentry-cli login` session) — required for any Sentry
+  flow (rotation or init).
+- `SENTRY_ORG` / `SENTRY_PROJECT` — required for Sentry **rotation and init**.
 
 Run `envctl auth status` to confirm the Vercel and Sentry credentials resolve
 before starting.
 
 ## Options
 
-| Flag                      | Effect                                                                                          |
-| ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `--env <name\|all>`       | Which deploy environment(s) to act on (default `all`).                                          |
-| `--deployment-dir <path>` | Deployment config directory, resolved against the project root (default `deployment`).          |
-| `--no-invalidate`         | Keep the old keys after the redeploy; print them for manual cleanup.                            |
-| `--refresh-previews`      | After rotation, redeploy active PR previews so their warm instances pick up the new credential. |
+| Flag                             | Effect                                                                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `--env <name\|development\|all>` | Which deploy environment(s) to act on (default `all`).                                          |
+| `--deployment-dir <path>`        | Deployment config directory, resolved against the project root (default `deployment`).          |
+| `--no-invalidate`                | Keep the old keys after the redeploy; print them for manual cleanup.                            |
+| `--refresh-previews`             | After rotation, redeploy active PR previews so their warm instances pick up the new credential. |
 
 ## Related
 
