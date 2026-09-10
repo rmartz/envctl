@@ -105,7 +105,7 @@ describe("run — prerequisite checks", () => {
     ).rejects.toThrow("No Firebase or Sentry");
     await expect(
       run({ targetEnv: "all", invalidateKeys: true }),
-    ).rejects.toThrow("--init");
+    ).rejects.toThrow("secrets init");
   });
 });
 
