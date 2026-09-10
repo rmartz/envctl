@@ -14,6 +14,20 @@ Format (OKF). One page per script or subsystem.
 - [OKF documentation format](okf-format.md) — what OKF is, how this bundle uses
   it, and a pointer to the authoritative Google spec.
 
+## Subsystems
+
+- [Environments and local config](env.md) — the in-repo deployment-config model,
+  defining environments (`init` / `env add` / `env list`), materializing a local
+  dotenv (`env pull`), and auth resolution.
+- [Config push](config-push.md) — upserting public (non-secret) env vars from
+  YAML to Vercel targets.
+- [Secrets rotation engine](secrets-rotation.md) — atomically minting,
+  deploying, verifying, and invalidating Firebase and Sentry credentials
+  (`secrets rotate` / `secrets init`).
+
+Other runtime subsystems (the Vercel API client, deployment orchestration) are
+not yet documented here; pages are added as those modules are next touched.
+
 ## Scripts
 
 - [check-agents-md](check-agents-md.md) — enforces the AGENTS.md / CLAUDE.md
