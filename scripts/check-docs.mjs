@@ -3,8 +3,11 @@
  * docs/ knowledge-bundle check — enforces two OKF invariants across `docs/`
  * (see AGENTS.md → Documentation):
  *
- *   1. OKF frontmatter — every `.md` file starts with a YAML frontmatter block
- *      whose OKF-required `type` field is present and non-empty.
+ *   1. OKF frontmatter — every non-index `.md` file starts with a YAML
+ *      frontmatter block whose OKF-required `type` field is present and
+ *      non-empty. A reserved `index.md` is exempt (OKF §8): it carries no
+ *      frontmatter, save an optional bundle-root `okf_version` key — any other
+ *      key (including `type`) is a violation.
  *   2. Index navigability — every directory on the path to a doc carries an
  *      `index.md`; each `index.md` links every non-index `.md` in its own
  *      directory, and links the `index.md` of every immediate subdirectory. So
@@ -88,6 +91,43 @@ function frontmatterError(path) {
   return undefined;
 }
 
+// Index-file frontmatter validation (OKF §8 / §11). A reserved `index.md` is
+// exempt from the `type` requirement: it may carry no frontmatter at all, or a
+// frontmatter block whose only key is `okf_version`. Returns an error string
+// when the file carries frontmatter with any other key (e.g. `type`).
+function indexFrontmatterError(path) {
+  const text = readFileSync(path, "utf8");
+  // No frontmatter is the canonical shape for an index file.
+  if (!/^---\r?\n/.test(text)) {
+    return undefined;
+  }
+  const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)/);
+  if (!match) {
+    return "OKF frontmatter block is never closed with a `---` fence";
+  }
+  let data;
+  try {
+    data = loadYaml(match[1]);
+  } catch (err) {
+    return `OKF frontmatter is not valid YAML: ${err.message}`;
+  }
+  // An empty block carries no keys — treat it as no frontmatter.
+  if (data === null) {
+    return undefined;
+  }
+  if (typeof data !== "object" || Array.isArray(data)) {
+    return "OKF frontmatter must be a YAML mapping of fields";
+  }
+  const extra = Object.keys(data).filter((key) => key !== "okf_version");
+  if (extra.length > 0) {
+    return (
+      "index.md must not carry OKF frontmatter beyond `okf_version` " +
+      `(OKF §8); disallowed key(s): ${extra.join(", ")}`
+    );
+  }
+  return undefined;
+}
+
 // The `target` of every `[text](target)` markdown link in the text.
 function linkTargets(text) {
   const targets = [];
@@ -123,7 +163,10 @@ function resolveTarget(indexDir, target) {
 function checkFrontmatter(byDir, violations) {
   for (const [dir, files] of byDir) {
     for (const name of files) {
-      const error = frontmatterError(join(dir, name));
+      const error =
+        name === INDEX
+          ? indexFrontmatterError(join(dir, name))
+          : frontmatterError(join(dir, name));
       if (error)
         violations.push(`${relative(repoRoot, join(dir, name))}: ${error}`);
     }
@@ -180,8 +223,10 @@ function main() {
     for (const violation of violations.sort())
       console.error(`  ✗ ${violation}`);
     console.error(
-      `\n${violations.length} violation(s). Every docs/ page needs OKF frontmatter with` +
-        ` a \`type\`, and must be reachable via ${INDEX} links from docs/${INDEX}.`,
+      `\n${violations.length} violation(s). Every non-index docs/ page needs OKF` +
+        ` frontmatter with a \`type\` (a reserved ${INDEX} carries none beyond` +
+        ` \`okf_version\`), and every page must be reachable via ${INDEX} links` +
+        ` from docs/${INDEX}.`,
     );
     process.exit(1);
   }
