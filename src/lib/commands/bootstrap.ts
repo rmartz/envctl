@@ -21,12 +21,14 @@ type Configured = { firebase: boolean; sentry: boolean };
 
 // Fails fast, before any change, on the prerequisites the three phases need:
 // a resolvable Vercel project, the Vercel CLI (for the pull), gcloud (for
-// Firebase), and a Sentry token (for Sentry).
+// Firebase), and a Sentry token (for Sentry). Tool-existence checks are skipped
+// on --dry-run because those tools are never invoked on that path.
 function bootstrapPreflight(
   opts: BootstrapOptions,
   configured: Configured,
 ): void {
   detectProject(opts.workingDir); // throws early if the project can't be resolved
+  if (opts.dryRun) return;
   if (opts.pull && !commandExists("vercel"))
     err(
       "The Vercel CLI is required for the local pull phase. Install it (e.g. `npm i -g vercel`) or pass --no-pull.",
@@ -41,18 +43,31 @@ function bootstrapPreflight(
     );
 }
 
+// The three fixed Vercel deployment targets. Used to check full presence for
+// "--env all": a secret is "already present" only if it covers all targets.
+const ALL_VERCEL_TARGETS = ["production", "preview", "development"] as const;
+
 // Reports which providers already have their secret present in the Vercel
-// project, using the same signals the rotation engine keys off.
+// project, scoped to the requested target(s) so a partial prior run (e.g. key
+// exists for production only) does not incorrectly skip other environments.
 async function detectExistingSecrets(
   client: VercelClient,
+  targetEnv: string,
 ): Promise<Configured> {
   const { envs } = await client.listEnvVars();
-  const keys = new Set(envs.map((e) => e.key));
+  const isPresent = (key: string): boolean => {
+    if (targetEnv === "all") {
+      return ALL_VERCEL_TARGETS.every((t) =>
+        envs.some((e) => e.key === key && e.target.includes(t)),
+      );
+    }
+    return envs.some((e) => e.key === key && e.target.includes(targetEnv));
+  };
   return {
-    firebase: ["FIREBASE_SERVICE_ACCOUNT", "FIREBASE_PRIVATE_KEY"].some((k) =>
-      keys.has(k),
+    firebase: ["FIREBASE_SERVICE_ACCOUNT", "FIREBASE_PRIVATE_KEY"].some(
+      isPresent,
     ),
-    sentry: ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"].some((k) => keys.has(k)),
+    sentry: ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"].some(isPresent),
   };
 }
 
@@ -79,7 +94,7 @@ async function bootstrapSecrets(
 
   const project = detectProject(opts.workingDir);
   const client = new VercelClient(token, project.projectId, project.teamId);
-  const present = await detectExistingSecrets(client);
+  const present = await detectExistingSecrets(client, opts.targetEnv);
 
   for (const service of services) {
     if (present[service]) {

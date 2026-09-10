@@ -42,6 +42,24 @@ same auth as the rest of the CLI — `VERCEL_TOKEN` or `vercel login`,
 verify → invalidate flow, and the [docs index](docs/index.md) for the
 [config-push](docs/config-push.md) and [environments](docs/env.md) subsystems.
 
+## Bootstrap a blank environment
+
+Bring a linked but otherwise empty Vercel project fully online in one step:
+
+```bash
+envctl bootstrap
+```
+
+**Prerequisites:**
+
+1. A linked Vercel project (`.vercel/project.json`, created by `vercel link`)
+2. An authenticated `gcloud` with a **pre-existing** Firebase project and service account — if the project uses Firebase (envctl mints keys for existing resources; creating the service account from scratch is tracked in [#70](https://github.com/rmartz/envctl/issues/70))
+3. A Sentry token (`SENTRY_AUTH_TOKEN` or `sentry-cli login`) and a **pre-existing** Sentry project — if the project uses Sentry
+
+`bootstrap` runs three phases in order: push public variables (`config push`), initialize any missing provider secrets (`secrets init`), and pull a local dotenv file (`env pull`). It is idempotent — safe to re-run after a partial failure, and existing secrets are never rotated. Pass `--dry-run` to preview every phase without making changes.
+
+See the [Bootstrap subsystem docs](docs/bootstrap.md) for the full option reference.
+
 ## Development
 
 ```bash

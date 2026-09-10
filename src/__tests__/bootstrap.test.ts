@@ -27,13 +27,16 @@ const FIREBASE_VARS = {
 };
 const SENTRY_VARS = { SENTRY_ORG: "acme", SENTRY_PROJECT: "web" };
 
-function envRecords(keys: string[]) {
+function envRecords(
+  keys: string[],
+  targets = ["production", "preview", "development"],
+) {
   return {
     envs: keys.map((key) => ({
       id: `id-${key}`,
       key,
       value: "x",
-      target: ["production"],
+      target: targets,
       type: "encrypted" as const,
     })),
   };
@@ -177,6 +180,39 @@ describe("runBootstrap — idempotency", () => {
     expect(pushSpy).toHaveBeenCalledTimes(1);
     expect(pullSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("initializes when the key exists only for a different target", async () => {
+    const dir = makeDeploymentDir(tmpDir, ["production", "preview"], {
+      production: FIREBASE_VARS,
+      preview: FIREBASE_VARS,
+    });
+    // Key exists for production only; bootstrap targets preview.
+    vi.mocked(VercelClient.prototype.listEnvVars).mockResolvedValue(
+      envRecords(["FIREBASE_SERVICE_ACCOUNT"], ["production"]),
+    );
+
+    await runBootstrap(makeOpts(dir, { targetEnv: "preview" }));
+
+    expect(secretsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ init: "firebase", targetEnv: "preview" }),
+    );
+  });
+
+  it("initializes when the key exists only for some targets and targetEnv is all", async () => {
+    const dir = makeDeploymentDir(tmpDir, ["staging"], {
+      staging: FIREBASE_VARS,
+    });
+    // Key exists for production only; bootstrap runs for all targets.
+    vi.mocked(VercelClient.prototype.listEnvVars).mockResolvedValue(
+      envRecords(["FIREBASE_SERVICE_ACCOUNT"], ["production"]),
+    );
+
+    await runBootstrap(makeOpts(dir));
+
+    expect(secretsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ init: "firebase" }),
+    );
+  });
 });
 
 // ─── Phase gating ──────────────────────────────────────────────────────────────
@@ -255,6 +291,23 @@ describe("runBootstrap — preflight", () => {
 
     await expect(runBootstrap(makeOpts(dir))).rejects.toThrow(FatalError);
     expect(pushSpy).not.toHaveBeenCalled();
+  });
+
+  it("--dry-run does not error when gcloud or Sentry token is absent", async () => {
+    vi.mocked(subprocess.commandExists).mockImplementation(
+      (cmd: string) => cmd !== "gcloud",
+    );
+    delete process.env.SENTRY_AUTH_TOKEN;
+    const dir = makeDeploymentDir(tmpDir, ["production"], {
+      production: { ...FIREBASE_VARS, ...SENTRY_VARS },
+    });
+
+    await expect(
+      runBootstrap(makeOpts(dir, { dryRun: true })),
+    ).resolves.not.toThrow();
+    expect(pushSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: true }),
+    );
   });
 
   it("errors when --env names an inactive environment", async () => {
