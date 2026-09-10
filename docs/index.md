@@ -14,6 +14,13 @@ Format (OKF). One page per script or subsystem.
 - [OKF documentation format](okf-format.md) — what OKF is, how this bundle uses
   it, and a pointer to the authoritative Google spec.
 
+## Runbooks
+
+- [Applying config and minting/rotating secrets on a Vercel deploy](runbook-vercel-deploy.md)
+  — the scenario-driven playbook (cold-start, mint, rotate, add a provider,
+  public-var change, local pull) for operating envctl against a Firebase +
+  Next.js Vercel project.
+
 ## Subsystems
 
 - [Environments and local config](env.md) — the in-repo deployment-config model,
