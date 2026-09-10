@@ -72,10 +72,10 @@ envctl env list                               # list environments and their targ
   file. It is a no-op with a warning if config already exists — it never
   clobbers hand-edited files.
 - **`env add`** appends the name to the active list and scaffolds its file.
-  Idempotent: an already-active name is a no-op. `--target` records the intended
-  mapping and is validated against `production|preview|development`; if it
-  disagrees with the name convention, `env add` warns (config push maps by
-  name).
+  Idempotent: an already-active name is a no-op. `--target` declares the intended
+  mapping and is validated against the allowed set (`production|preview|development`);
+  if it disagrees with the name convention, `env add` warns (config push maps by
+  name). The target is not persisted — `environments.yml` stores only the env name.
 - **`env list`** prints each active environment and its resolved Vercel target.
 
 ## Pulling config for local testing
