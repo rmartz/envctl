@@ -1,5 +1,6 @@
 import { resolveSentryToken, resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
+import { triggerAndWaitRedeployments } from "../deployments";
 import { listActiveEnvs } from "../environments";
 import { err, log } from "../logger";
 import { detectProject } from "../project";
@@ -115,6 +116,23 @@ async function bootstrapSecrets(
   }
 }
 
+// Phase 4: trigger redeployments so running environments pick up the pushed
+// vars. On a zero-deployment project this logs a skip per env (the
+// "No READY deployment found" message) rather than erroring, satisfying the
+// #71 requirement that bootstrap explicitly reports when verification is skipped.
+async function bootstrapVerify(
+  opts: BootstrapOptions,
+  token: string,
+): Promise<void> {
+  if (opts.dryRun) {
+    log("  Would trigger redeployments to verify pushed configuration.");
+    return;
+  }
+  const project = detectProject(opts.workingDir);
+  const client = new VercelClient(token, project.projectId, project.teamId);
+  await triggerAndWaitRedeployments(opts.targetEnv, client);
+}
+
 // Phase 3: materialize the local dotenv file from the development environment.
 function bootstrapPull(opts: BootstrapOptions): void {
   if (!opts.pull) {
@@ -162,7 +180,7 @@ export async function runBootstrap(opts: BootstrapOptions): Promise<void> {
       : "Bootstrapping project...",
   );
 
-  log("Phase 1/3 — public environment variables");
+  log("Phase 1/4 — public environment variables");
   await runPush({
     targetEnv: opts.targetEnv,
     workingDir: opts.workingDir,
@@ -170,11 +188,14 @@ export async function runBootstrap(opts: BootstrapOptions): Promise<void> {
     dryRun: opts.dryRun,
   });
 
-  log("Phase 2/3 — provider secrets");
+  log("Phase 2/4 — provider secrets");
   await bootstrapSecrets(opts, token, configured);
 
-  log("Phase 3/3 — local environment file");
+  log("Phase 3/4 — local environment file");
   bootstrapPull(opts);
+
+  log("Phase 4/4 — post-push verification");
+  await bootstrapVerify(opts, token);
 
   log(opts.dryRun ? "Dry run complete." : "Bootstrap complete.");
 }
