@@ -200,7 +200,8 @@ A, verification is skipped when there is no prior deployment to redeploy.
 
 Rotation is **atomic**: mint the new credential → push it → redeploy and wait for
 Vercel `READY` → invalidate the old one. The project is never left without a
-working key. Full flow in
+deployed key; whether the new key successfully authenticates is subject to the
+[verification-depth caveat](#gotchas--caveats). Full flow in
 [the atomic flow](secrets-rotation.md#the-atomic-flow).
 
 ```bash
@@ -221,7 +222,7 @@ envctl secrets rotate --refresh-previews    # also redeploy warm PR previews
 **How you know it worked:** each target's redeploy reaches Vercel `READY` and,
 unless `--no-invalidate`, the old key is deleted (with `--no-invalidate`, the old
 key ids are printed for manual cleanup). **Remember the
-[verification-depth caveat](#the-deployment-config-model-at-a-glance):** `READY`
+[verification-depth caveat](#gotchas--caveats):** `READY`
 proves the deploy succeeded, not that the new credential authenticates
 ([#74](https://github.com/rmartz/envctl/issues/74)).
 
