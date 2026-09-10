@@ -94,17 +94,17 @@ export async function run(opts: RotationOptions): Promise<void> {
   if (opts.init) {
     if ((opts.init === "all" || opts.init === "firebase") && hasFirebase) {
       err(
-        "Firebase keys already exist in this Vercel project — use sync-env --rotate-keys to update them, not --init.",
+        "Firebase keys already exist in this Vercel project — use `envctl secrets rotate` to update them, not `envctl secrets init`.",
       );
     }
     if ((opts.init === "all" || opts.init === "sentry") && hasSentry) {
       err(
-        "Sentry keys already exist in this Vercel project — use sync-env --rotate-keys to update them, not --init.",
+        "Sentry keys already exist in this Vercel project — use `envctl secrets rotate` to update them, not `envctl secrets init`.",
       );
     }
   } else if (!hasFirebase && !hasSentry) {
     err(
-      "No Firebase or Sentry keys found in this Vercel project — nothing to rotate. To push secrets for the first time, use --init.",
+      "No Firebase or Sentry keys found in this Vercel project — nothing to rotate. To push secrets for the first time, use `envctl secrets init`.",
     );
   }
 
