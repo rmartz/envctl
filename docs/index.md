@@ -16,6 +16,8 @@ Format (OKF). One page per script or subsystem.
 
 ## Subsystems
 
+- [Bootstrap](bootstrap.md) — one-command end-to-end setup: push public config,
+  initialize any missing secrets, and pull a local dotenv (`bootstrap`).
 - [Environments and local config](env.md) — the in-repo deployment-config model,
   defining environments (`init` / `env add` / `env list`), materializing a local
   dotenv (`env pull`), and auth resolution.

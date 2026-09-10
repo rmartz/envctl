@@ -20,14 +20,14 @@ function sentrySourceEnv(
   return targetEnv;
 }
 
-// Resolves `--init auto` by scanning the deployment config for public vars that
-// indicate which services are in use. Errors if neither is configured.
-export function resolveAutoInit(
+// Scans the deployment config's public vars to determine which secret-backed
+// services a project uses. Shared by `--init auto` resolution and `bootstrap`.
+export function detectConfiguredServices(
   deploymentDir: string,
   targetEnv: string,
   envList: string[],
   devSource: string | undefined,
-): "all" | "firebase" | "sentry" {
+): { firebase: boolean; sentry: boolean } {
   // development has no own YAML — scan its source (staging) instead.
   const scanEnvs =
     targetEnv === "development"
@@ -42,15 +42,31 @@ export function resolveAutoInit(
     Object.keys(parseDeploymentEnv(deploymentDir, envName)),
   );
 
-  const hasFirebase = keys.some((k) =>
-    [
-      "FIREBASE_PROJECT_ID",
-      "FIREBASE_SA_EMAIL",
-      "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-    ].includes(k),
-  );
-  const hasSentry = keys.some((k) =>
-    ["SENTRY_ORG", "SENTRY_PROJECT"].includes(k),
+  return {
+    firebase: keys.some((k) =>
+      [
+        "FIREBASE_PROJECT_ID",
+        "FIREBASE_SA_EMAIL",
+        "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+      ].includes(k),
+    ),
+    sentry: keys.some((k) => ["SENTRY_ORG", "SENTRY_PROJECT"].includes(k)),
+  };
+}
+
+// Resolves `--init auto` by scanning the deployment config for public vars that
+// indicate which services are in use. Errors if neither is configured.
+export function resolveAutoInit(
+  deploymentDir: string,
+  targetEnv: string,
+  envList: string[],
+  devSource: string | undefined,
+): "all" | "firebase" | "sentry" {
+  const { firebase: hasFirebase, sentry: hasSentry } = detectConfiguredServices(
+    deploymentDir,
+    targetEnv,
+    envList,
+    devSource,
   );
 
   log("Auto-detecting secrets to initialize:");
