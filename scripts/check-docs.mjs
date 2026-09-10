@@ -112,18 +112,25 @@ function indexFrontmatterError(path) {
     return `OKF frontmatter is not valid YAML: ${err.message}`;
   }
   // An empty block carries no keys — treat it as no frontmatter.
-  if (data === null) {
+  // js-yaml returns undefined (not null) for an empty document, so use == null.
+  if (data == null) {
     return undefined;
   }
   if (typeof data !== "object" || Array.isArray(data)) {
     return "OKF frontmatter must be a YAML mapping of fields";
   }
-  const extra = Object.keys(data).filter((key) => key !== "okf_version");
+  // Only the bundle-root index.md may carry okf_version (OKF §8);
+  // subdirectory index.md files must carry no frontmatter at all.
+  const isBundleRoot = dirname(path) === DOCS_ROOT;
+  const extra = isBundleRoot
+    ? Object.keys(data).filter((key) => key !== "okf_version")
+    : Object.keys(data);
   if (extra.length > 0) {
-    return (
-      "index.md must not carry OKF frontmatter beyond `okf_version` " +
-      `(OKF §8); disallowed key(s): ${extra.join(", ")}`
-    );
+    return isBundleRoot
+      ? "index.md must not carry OKF frontmatter beyond `okf_version` " +
+          `(OKF §8); disallowed key(s): ${extra.join(", ")}`
+      : "subdirectory index.md must carry no frontmatter at all (OKF §8); " +
+          `disallowed key(s): ${extra.join(", ")}`;
   }
   return undefined;
 }
