@@ -44,15 +44,36 @@ describe("run — prerequisite checks", () => {
     ).rejects.toThrow(FatalError);
   });
 
-  it("throws FatalError when gcloud CLI is missing", async () => {
+  it("throws FatalError when Firebase is present but gcloud is missing (auth preflight)", async () => {
     const subprocess = await import("../lib/subprocess");
+    // vercel present + authenticated; gcloud absent so the GCP preflight fails.
     vi.spyOn(subprocess, "commandExists").mockImplementation(
       (cmd) => cmd !== "gcloud",
     );
+    vi.spyOn(subprocess, "run").mockReturnValue("rmartz");
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const { VercelClient } = await import("../lib/vercel-api");
+    vi.spyOn(VercelClient.prototype, "listEnvVars").mockResolvedValue({
+      envs: [
+        {
+          id: "e1",
+          key: "FIREBASE_SERVICE_ACCOUNT",
+          value: "{}",
+          target: ["production"],
+          type: "encrypted",
+        },
+      ],
+      pagination: undefined,
+    });
 
     await expect(
-      run({ targetEnv: "all", invalidateKeys: true }),
+      run({ targetEnv: "production", invalidateKeys: true }),
     ).rejects.toThrow(FatalError);
+    await expect(
+      run({ targetEnv: "production", invalidateKeys: true }),
+    ).rejects.toThrow(/gcloud/);
   });
 
   it("throws FatalError when vercel CLI is not authenticated", async () => {

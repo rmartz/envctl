@@ -94,6 +94,8 @@ async function dispatchRotation(
     invalidateKeys,
     workingDir,
     init,
+    // provider scopes rotate mode only; it is inert when init is set.
+    provider: init ? undefined : opts.provider,
     firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
     gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
     sentryOrg: vars.SENTRY_ORG || undefined,

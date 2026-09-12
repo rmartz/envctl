@@ -5,15 +5,19 @@ import * as path from "path";
 import { resolveVercelToken } from "./auth";
 import { err, log, warn } from "./logger";
 import { detectProject } from "./project";
-import { commandExists, run as runCmd } from "./subprocess";
+import { assertProviderAuth, checkVercelPrereqs } from "./rotation-preflight";
 import { VercelClient } from "./vercel-api";
 import type { FirebasePattern, OldFirebaseKey } from "./firebase";
 import {
   invalidateFirebaseKeys,
   initFirebase,
-  rotateFirebase,
+  rotateFirebase as rotateFirebaseKeys,
 } from "./firebase";
-import { initSentry, invalidateSentryKey, rotateSentry } from "./sentry";
+import {
+  initSentry,
+  invalidateSentryKey,
+  rotateSentry as rotateSentryKey,
+} from "./sentry";
 import { triggerAndWaitRedeployments } from "./deployments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,40 +36,19 @@ export interface RotationOptions {
   sentryOrg?: string;
   /** Sentry project slug. Falls back to SENTRY_PROJECT env var. */
   sentryProject?: string;
-}
-
-// ─── Prerequisites ────────────────────────────────────────────────────────────
-
-function checkPrereqs(
-  needsGcloud: boolean,
-  token: string | undefined,
-): asserts token is string {
-  const missing: string[] = [];
-  if (!commandExists("vercel")) missing.push("vercel");
-  if (needsGcloud && !commandExists("gcloud")) missing.push("gcloud");
-  if (missing.length > 0) err(`Missing required tools: ${missing.join(" ")}`);
-
-  if (!token)
-    err(
-      "No Vercel token found. Set VERCEL_TOKEN or run 'vercel login' to authenticate.",
-    );
-
-  try {
-    runCmd("vercel", ["whoami"]);
-  } catch {
-    err("Vercel CLI not authenticated. Run: vercel login");
-  }
+  /**
+   * Restrict a rotation to a single provider (mirrors `secrets init`'s
+   * positional). Undefined rotates every provider present in the project.
+   * Ignored for `init` flows, which scope via {@link RotationOptions.init}.
+   */
+  provider?: "firebase" | "sentry";
 }
 
 // ─── Main orchestration ───────────────────────────────────────────────────────
 
 export async function run(opts: RotationOptions): Promise<void> {
-  // gcloud is only needed for Firebase-related flows.
-  // When opts.init is undefined we don't yet know hasFirebase, so we conservatively
-  // require gcloud unless we know this is a Sentry-only init.
-  const needsGcloud = opts.init !== "sentry";
   const token = resolveVercelToken();
-  checkPrereqs(needsGcloud, token);
+  checkVercelPrereqs(token);
 
   const project = detectProject(opts.workingDir);
   log(
@@ -91,22 +74,46 @@ export async function run(opts: RotationOptions): Promise<void> {
     ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"].includes(k),
   );
 
+  // Which providers this run will actually act on. For rotate, `opts.provider`
+  // scopes to a single present provider; unset rotates every present one. For
+  // init, `opts.init` selects the provider(s).
+  const rotateFirebase = hasFirebase && opts.provider !== "sentry";
+  const rotateSentry = hasSentry && opts.provider !== "firebase";
+  const willInitFirebase = opts.init === "all" || opts.init === "firebase";
+  const willInitSentry = opts.init === "all" || opts.init === "sentry";
+
   if (opts.init) {
-    if ((opts.init === "all" || opts.init === "firebase") && hasFirebase) {
+    if (willInitFirebase && hasFirebase) {
       err(
         "Firebase keys already exist in this Vercel project — use `envctl secrets rotate` to update them, not `envctl secrets init`.",
       );
     }
-    if ((opts.init === "all" || opts.init === "sentry") && hasSentry) {
+    if (willInitSentry && hasSentry) {
       err(
         "Sentry keys already exist in this Vercel project — use `envctl secrets rotate` to update them, not `envctl secrets init`.",
       );
     }
+  } else if (opts.provider === "firebase" && !hasFirebase) {
+    err(
+      "No Firebase keys found in this Vercel project — nothing to rotate for `firebase`. To push them for the first time, use `envctl secrets init firebase`.",
+    );
+  } else if (opts.provider === "sentry" && !hasSentry) {
+    err(
+      "No Sentry keys found in this Vercel project — nothing to rotate for `sentry`. To push them for the first time, use `envctl secrets init sentry`.",
+    );
   } else if (!hasFirebase && !hasSentry) {
     err(
       "No Firebase or Sentry keys found in this Vercel project — nothing to rotate. To push secrets for the first time, use `envctl secrets init`.",
     );
   }
+
+  // Fail fast if a provider we would mint/push for is not authenticated, before
+  // any key is created — so a rotation can never leave a partial state (#91).
+  assertProviderAuth(
+    opts.init
+      ? { firebase: willInitFirebase, sentry: willInitSentry }
+      : { firebase: rotateFirebase, sentry: rotateSentry },
+  );
 
   log(
     `Target: ${opts.targetEnv} | ${opts.init ? "Initializing" : `Invalidate after redeployment: ${opts.invalidateKeys}`}`,
@@ -139,15 +146,15 @@ export async function run(opts: RotationOptions): Promise<void> {
       let fp: FirebasePattern | null = null;
       let oldSentryKeyId = "";
 
-      if (hasFirebase) {
-        ({ oldKeys: oldFirebaseKeys, fp } = await rotateFirebase(
+      if (rotateFirebase) {
+        ({ oldKeys: oldFirebaseKeys, fp } = await rotateFirebaseKeys(
           opts.targetEnv,
           client,
           tempDir,
         ));
       }
-      if (hasSentry) {
-        oldSentryKeyId = await rotateSentry(
+      if (rotateSentry) {
+        oldSentryKeyId = await rotateSentryKey(
           opts.targetEnv,
           client,
           opts.sentryOrg,
@@ -159,8 +166,8 @@ export async function run(opts: RotationOptions): Promise<void> {
 
       if (opts.invalidateKeys) {
         log("Invalidating old keys...");
-        if (hasFirebase && fp) await invalidateFirebaseKeys(client, fp);
-        if (hasSentry && oldSentryKeyId) {
+        if (rotateFirebase && fp) await invalidateFirebaseKeys(client, fp);
+        if (rotateSentry && oldSentryKeyId) {
           const org = opts.sentryOrg ?? process.env.SENTRY_ORG;
           const project = opts.sentryProject ?? process.env.SENTRY_PROJECT;
           if (!org || !project)
