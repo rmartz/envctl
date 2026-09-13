@@ -3,6 +3,7 @@
 // touching the router or entrypoint.
 
 import { runAuthStatus } from "../commands/auth";
+import { runBootstrapCommand } from "../commands/bootstrap";
 import { configPushCommand } from "../commands/config-push";
 import { runEnvAdd, runEnvList } from "../commands/env";
 import { runEnvPull } from "../commands/env-pull";
@@ -73,6 +74,13 @@ export function buildRegistry(): Registry {
       summary: "Scaffold the deployment/ config in this project",
       commands: [],
       run: runInit,
+    },
+    {
+      name: "bootstrap",
+      summary:
+        "Configure a project end to end: push config, init secrets, pull local env",
+      commands: [],
+      run: runBootstrapCommand,
     },
     {
       name: "secrets",
