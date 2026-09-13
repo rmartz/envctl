@@ -16,9 +16,11 @@ describe("assertProviderAuth", () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "envctl-preflight-"));
-    // Neutralize ambient Sentry credentials so auth state is deterministic.
+    // Neutralize ambient Sentry credentials and config so state is deterministic.
     vi.stubEnv("SENTRY_AUTH_TOKEN", "");
     vi.stubEnv("__SENTRY_CLIRC_PATH", path.join(tmpDir, "no-clirc"));
+    vi.stubEnv("SENTRY_ORG", "");
+    vi.stubEnv("SENTRY_PROJECT", "");
   });
 
   afterEach(() => {
@@ -47,13 +49,42 @@ describe("assertProviderAuth", () => {
     );
   });
 
-  it("passes when every selected provider is authenticated", () => {
+  it("passes when every selected provider is authenticated and configured", () => {
     vi.spyOn(subprocess, "commandExists").mockReturnValue(true);
     vi.spyOn(subprocess, "run").mockReturnValue("me@example.com\n");
     vi.stubEnv("SENTRY_AUTH_TOKEN", "sntryu_token");
     expect(() =>
-      assertProviderAuth({ firebase: true, sentry: true }),
+      assertProviderAuth({
+        firebase: true,
+        sentry: true,
+        sentryOrg: "test-org",
+        sentryProject: "test-proj",
+      }),
     ).not.toThrow();
+  });
+
+  it("throws when Sentry is selected but SENTRY_ORG is missing", () => {
+    vi.spyOn(subprocess, "commandExists").mockReturnValue(true);
+    vi.stubEnv("SENTRY_AUTH_TOKEN", "sntryu_token");
+    expect(() =>
+      assertProviderAuth({
+        firebase: false,
+        sentry: true,
+        sentryProject: "test-proj",
+      }),
+    ).toThrow(/SENTRY_ORG/);
+  });
+
+  it("throws when Sentry is selected but SENTRY_PROJECT is missing", () => {
+    vi.spyOn(subprocess, "commandExists").mockReturnValue(true);
+    vi.stubEnv("SENTRY_AUTH_TOKEN", "sntryu_token");
+    expect(() =>
+      assertProviderAuth({
+        firebase: false,
+        sentry: true,
+        sentryOrg: "test-org",
+      }),
+    ).toThrow(/SENTRY_PROJECT/);
   });
 
   it("reports every unauthenticated provider in one message", () => {

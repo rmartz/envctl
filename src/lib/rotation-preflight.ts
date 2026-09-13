@@ -7,6 +7,10 @@ import { commandExists, run as runCmd } from "./subprocess";
 export interface ProviderSet {
   firebase: boolean;
   sentry: boolean;
+  /** Sentry org slug — falls back to SENTRY_ORG env var. */
+  sentryOrg?: string;
+  /** Sentry project slug — falls back to SENTRY_PROJECT env var. */
+  sentryProject?: string;
 }
 
 // Vercel is required for every flow: assert the CLI is installed, a token
@@ -39,14 +43,22 @@ export function assertProviderAuth(providers: ProviderSet): void {
     missing.push(
       "gcp (Firebase) — install the gcloud CLI and run `gcloud auth login`",
     );
-  if (providers.sentry && !sentryAuthState().authenticated)
-    missing.push("sentry — set SENTRY_AUTH_TOKEN or run `sentry-cli login`");
+  if (providers.sentry) {
+    if (!sentryAuthState().authenticated)
+      missing.push("sentry — set SENTRY_AUTH_TOKEN or run `sentry-cli login`");
+    const org = providers.sentryOrg ?? process.env.SENTRY_ORG;
+    const project = providers.sentryProject ?? process.env.SENTRY_PROJECT;
+    if (!org)
+      missing.push("sentry — set SENTRY_ORG (Sentry organization slug)");
+    if (!project)
+      missing.push("sentry — set SENTRY_PROJECT (Sentry project slug)");
+  }
 
   if (missing.length > 0)
     err(
-      `Not authenticated for provider(s) that would be rotated:\n` +
+      `Not authenticated or configured for provider(s) required by this operation:\n` +
         missing.map((m) => `  - ${m}`).join("\n") +
-        `\nAuthenticate the provider(s) (see \`envctl auth status\`), or scope ` +
-        `the run to an authenticated provider (e.g. \`envctl secrets rotate firebase\`).`,
+        `\nProvide the required credentials (see \`envctl auth status\`), or scope ` +
+        `the run to a ready provider.`,
     );
 }

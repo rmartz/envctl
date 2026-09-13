@@ -128,8 +128,8 @@ for the providers the run will act on**, after presence detection and any
 
 - **`gcloud`** installed and authenticated, for any Firebase flow.
 - `SENTRY_AUTH_TOKEN` (or `sentry-cli login` session), for any Sentry flow.
-- `SENTRY_ORG` / `SENTRY_PROJECT` — additionally required for Sentry key
-  **invalidation**.
+- `SENTRY_ORG` / `SENTRY_PROJECT` — required for any Sentry rotation or
+  initialization (to query and create keys); also required for key **invalidation**.
 
 Run `envctl auth status` to confirm every provider's credential resolves before
 starting.

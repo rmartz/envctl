@@ -111,8 +111,18 @@ export async function run(opts: RotationOptions): Promise<void> {
   // any key is created — so a rotation can never leave a partial state (#91).
   assertProviderAuth(
     opts.init
-      ? { firebase: willInitFirebase, sentry: willInitSentry }
-      : { firebase: rotateFirebase, sentry: rotateSentry },
+      ? {
+          firebase: willInitFirebase,
+          sentry: willInitSentry,
+          sentryOrg: opts.sentryOrg,
+          sentryProject: opts.sentryProject,
+        }
+      : {
+          firebase: rotateFirebase,
+          sentry: rotateSentry,
+          sentryOrg: opts.sentryOrg,
+          sentryProject: opts.sentryProject,
+        },
   );
 
   log(
