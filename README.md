@@ -37,7 +37,13 @@ one, so the project is never left without a working credential. It relies on the
 same auth as the rest of the CLI — `VERCEL_TOKEN` or `vercel login`,
 `SENTRY_AUTH_TOKEN`, and an authenticated `gcloud` for Firebase key minting (run
 `envctl auth status` to check). Pass `--no-invalidate` to keep the old keys or
-`--refresh-previews` to redeploy active PR previews afterward. See the
+`--refresh-previews` to redeploy active PR previews afterward.
+
+New to a project, or unsure which command to reach for? Start with the
+**[Vercel deploy runbook](docs/runbook-vercel-deploy.md)** — a scenario-driven
+playbook (cold-start, mint, rotate, add a provider, public-var change, local
+pull) with copy-pasteable sequences and a "how you know it worked" check for
+each. For mechanism detail, see the
 [secrets rotation engine](docs/secrets-rotation.md) for the full mint → deploy →
 verify → invalidate flow, and the [docs index](docs/index.md) for the
 [config-push](docs/config-push.md) and [environments](docs/env.md) subsystems.

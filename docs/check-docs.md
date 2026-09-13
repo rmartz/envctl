@@ -32,10 +32,12 @@ changes.
 
 Walks `docs/` and asserts:
 
-- **OKF frontmatter** — every `.md` file opens with a closed YAML frontmatter
-  block (`---` … `---`) that parses as a mapping and carries a non-empty `type`
-  field (the only field OKF v0.2 requires). Malformed or missing frontmatter is
-  a violation.
+- **OKF frontmatter** — every non-index `.md` file opens with a closed YAML
+  frontmatter block (`---` … `---`) that parses as a mapping and carries a
+  non-empty `type` field (the only field OKF v0.2 requires). Malformed or missing
+  frontmatter is a violation. A reserved `index.md` is **exempt** (OKF §8): it
+  carries no frontmatter, save an optional bundle-root `okf_version` key — any
+  other key (including `type`) is a violation.
 - **Index navigability** — every directory on the path to a page carries an
   [`index.md`](index.md); each `index.md` links every non-index `.md` in its own
   directory, and links the `index.md` of every immediate subdirectory. This

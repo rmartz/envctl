@@ -2,6 +2,8 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
+import { commandExists, run as runCmd } from "./subprocess";
+
 interface VercelAuth {
   token?: string;
   expiresAt?: number;
@@ -118,5 +120,23 @@ export function sentryAuthState(): AuthState {
     return { authenticated: true, source: "SENTRY_AUTH_TOKEN env var" };
   if (readSentryClircToken())
     return { authenticated: true, source: "sentry-cli login (~/.sentryclirc)" };
+  return { authenticated: false };
+}
+
+// GCP auth is owned entirely by the gcloud CLI; report the active account via a
+// local, side-effect-free `gcloud auth list` query (no token minting).
+export function gcpAuthState(): AuthState {
+  if (!commandExists("gcloud")) return { authenticated: false };
+  try {
+    const account = runCmd("gcloud", [
+      "auth",
+      "list",
+      "--filter=status:ACTIVE",
+      "--format=value(account)",
+    ]).trim();
+    if (account) return { authenticated: true, source: `gcloud: ${account}` };
+  } catch {
+    // gcloud present but the query failed — treat as unauthenticated.
+  }
   return { authenticated: false };
 }
