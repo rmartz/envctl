@@ -22,15 +22,23 @@ export interface SecretsOptions {
   // Bootstrap mode: undefined = rotate existing secrets; "auto" = detect from
   // deployment config; otherwise the specific service to initialize.
   init?: "all" | "auto" | "firebase" | "sentry";
+  // Rotate mode only: restrict the run to a single provider (the leading
+  // firebase|sentry positional). Undefined rotates every present provider.
+  provider?: "firebase" | "sentry";
 }
 
-export const ROTATE_USAGE = `Usage: envctl secrets rotate [OPTIONS]
+export const ROTATE_USAGE = `Usage: envctl secrets rotate [firebase|sentry] [OPTIONS]
 
 Atomically rotate provider secrets: mint the new credential, redeploy, verify
 it, then invalidate the old one — so the project is never left without a working
 credential. Rotates Firebase service-account keys (per environment) and the
 Sentry auth token (once, project-wide), for whichever are present in the Vercel
-project.
+project. Auth for every provider to be rotated is checked up front, so an
+unauthenticated provider fails fast instead of leaving a partial rotation.
+
+ARGUMENTS:
+  firebase | sentry        Restrict the rotation to a single provider
+                           (default: every provider present in the project)
 
 OPTIONS:
   --env <name>             Environment to rotate (a name from environments.yml,
@@ -72,7 +80,8 @@ export function parseSecretsArgs(
   let invalidateKeys = true;
   let refreshPreviews = false;
   let init: SecretsOptions["init"] = isInit ? "auto" : undefined;
-  let initTargetSet = false;
+  let provider: SecretsOptions["provider"];
+  let providerTargetSet = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -90,13 +99,12 @@ export function parseSecretsArgs(
     } else if (arg === "-h" || arg === "--help") {
       console.log(isInit ? INIT_USAGE : ROTATE_USAGE);
       process.exit(0);
-    } else if (
-      isInit &&
-      !initTargetSet &&
-      (arg === "firebase" || arg === "sentry")
-    ) {
-      init = arg;
-      initTargetSet = true;
+    } else if (!providerTargetSet && (arg === "firebase" || arg === "sentry")) {
+      // A leading firebase|sentry positional selects the init target in init
+      // mode, or scopes the rotation to that provider in rotate mode.
+      if (isInit) init = arg;
+      else provider = arg;
+      providerTargetSet = true;
     } else {
       const cmd = isInit ? "secrets init" : "secrets rotate";
       err(`Unknown option: ${arg}. Run 'envctl ${cmd} --help' for usage.`);
@@ -110,5 +118,6 @@ export function parseSecretsArgs(
     invalidateKeys,
     refreshPreviews,
     init,
+    provider,
   };
 }

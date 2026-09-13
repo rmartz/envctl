@@ -21,14 +21,17 @@ are a separate concern — see [config-push](config-push.md).
 ## Commands
 
 ```bash
-envctl secrets rotate [OPTIONS]              # rotate existing secrets
-envctl secrets init [firebase|sentry] [OPTS] # bootstrap secrets for a fresh project
+envctl secrets rotate [firebase|sentry] [OPTS] # rotate existing secrets
+envctl secrets init [firebase|sentry] [OPTS]   # bootstrap secrets for a fresh project
 ```
 
 Both accept `--env <name|development|all>` (default `all`), `--deployment-dir <path>`
-(default `deployment`), `--no-invalidate`, and `--refresh-previews`. `secrets
-init` additionally takes an optional `firebase`|`sentry` positional; omitting it
-auto-detects which services to initialize.
+(default `deployment`), `--no-invalidate`, and `--refresh-previews`, and both take
+an optional leading `firebase`|`sentry` positional. For `init` it selects which
+service to initialize (omitted → auto-detect from the deployment config); for
+`rotate` it **scopes the run to a single provider** — useful when a project has
+both providers in Vercel but you only want to (or can only) rotate one. Omitting
+it rotates every provider present in the project.
 
 ## Rotate vs. init
 
@@ -55,6 +58,16 @@ once.
 For a rotation, [`rotation.ts`](../src/lib/rotation.ts) `run` executes, per
 requested target:
 
+0. **Auth preflight** (`assertProviderAuth` in
+   [`rotation-preflight.ts`](../src/lib/rotation-preflight.ts)). Before any key
+   is minted, auth is asserted for **every provider the run will act on** — GCP
+   (via `gcloud`) for Firebase, `SENTRY_AUTH_TOKEN` for Sentry — and the run
+   fails fast with an actionable message if one is missing. This is what stops
+   a mixed-provider rotation from minting and pushing Firebase's new key and
+   only _then_ discovering Sentry is unauthenticated, which would leave a
+   partial, unverified state ([#91](https://github.com/rmartz/envctl/issues/91)).
+   Scope with the `firebase`|`sentry` positional to rotate just the
+   authenticated provider.
 1. **Mint & push the new credential.** The old credential remains valid in the
    provider — nothing has been invalidated yet.
    - **Firebase** (`rotateFirebase` / `initFirebase`): `gcloud iam service-accounts keys create`
@@ -101,27 +114,35 @@ scoped:
 
 ## Prerequisites
 
-Checked by `checkPrereqs` before any provider call:
+Vercel is checked by `checkVercelPrereqs`
+([`rotation-preflight.ts`](../src/lib/rotation-preflight.ts)) for every flow, up
+front:
 
 - The **Vercel CLI** installed and authenticated (`vercel whoami`).
 - A **Vercel token** — `VERCEL_TOKEN` or a `vercel login` session (see
   [auth resolution](env.md#authentication)).
-- **`gcloud`** installed and authenticated, for any Firebase flow.
-- `SENTRY_AUTH_TOKEN` (or `sentry-cli login` session) — required for any Sentry
-  flow (rotation or init).
-- `SENTRY_ORG` / `SENTRY_PROJECT` — required for Sentry **rotation and init**.
 
-Run `envctl auth status` to confirm the Vercel and Sentry credentials resolve
-before starting.
+Per-provider auth is then asserted by `assertProviderAuth` (step 0 above) **only
+for the providers the run will act on**, after presence detection and any
+`firebase`|`sentry` scoping:
+
+- **`gcloud`** installed and authenticated, for any Firebase flow.
+- `SENTRY_AUTH_TOKEN` (or `sentry-cli login` session), for any Sentry flow.
+- `SENTRY_ORG` / `SENTRY_PROJECT` — required for any Sentry rotation or
+  initialization (to query and create keys); also required for key **invalidation**.
+
+Run `envctl auth status` to confirm every provider's credential resolves before
+starting.
 
 ## Options
 
-| Flag                             | Effect                                                                                          |
-| -------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `--env <name\|development\|all>` | Which deploy environment(s) to act on (default `all`).                                          |
-| `--deployment-dir <path>`        | Deployment config directory, resolved against the project root (default `deployment`).          |
-| `--no-invalidate`                | Keep the old keys after the redeploy; print them for manual cleanup.                            |
-| `--refresh-previews`             | After rotation, redeploy active PR previews so their warm instances pick up the new credential. |
+| Flag                             | Effect                                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `firebase` \| `sentry`           | Positional. Scope the run to one provider (rotate) / pick the init target. Default: all present. |
+| `--env <name\|development\|all>` | Which deploy environment(s) to act on (default `all`).                                           |
+| `--deployment-dir <path>`        | Deployment config directory, resolved against the project root (default `deployment`).           |
+| `--no-invalidate`                | Keep the old keys after the redeploy; print them for manual cleanup.                             |
+| `--refresh-previews`             | After rotation, redeploy active PR previews so their warm instances pick up the new credential.  |
 
 ## Related
 

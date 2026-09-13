@@ -17,6 +17,7 @@ describe("parseSecretsArgs — rotate mode", () => {
       invalidateKeys: true,
       refreshPreviews: false,
       init: undefined,
+      provider: undefined,
     });
   });
 
@@ -44,8 +45,31 @@ describe("parseSecretsArgs — rotate mode", () => {
     ).toBe(path.resolve(WD, "cfg"));
   });
 
-  it("rejects a firebase/sentry positional in rotate mode", () => {
-    expect(() => parseSecretsArgs(["firebase"], WD, false)).toThrow(FatalError);
+  it("reads a firebase positional as the provider scope", () => {
+    const opts = parseSecretsArgs(["firebase"], WD, false);
+    expect(opts.provider).toBe("firebase");
+    expect(opts.init).toBeUndefined();
+  });
+
+  it("reads a sentry positional as the provider scope", () => {
+    expect(parseSecretsArgs(["sentry"], WD, false).provider).toBe("sentry");
+  });
+
+  it("combines the provider positional with flags", () => {
+    const opts = parseSecretsArgs(
+      ["firebase", "--env", "production", "--no-invalidate"],
+      WD,
+      false,
+    );
+    expect(opts.provider).toBe("firebase");
+    expect(opts.targetEnv).toBe("production");
+    expect(opts.invalidateKeys).toBe(false);
+  });
+
+  it("rejects a second positional", () => {
+    expect(() => parseSecretsArgs(["firebase", "sentry"], WD, false)).toThrow(
+      FatalError,
+    );
   });
 
   it("rejects an unknown option", () => {
