@@ -139,6 +139,24 @@ describe("runConfigPull", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("refuses to write when the target is a dangling symlink (bypasses existsSync)", () => {
+    linkProject();
+    const out = path.join(workingDir, ".env.local");
+    fs.symlinkSync(path.join(workingDir, "nonexistent"), out);
+    const run = vi.spyOn(subprocess, "run").mockReturnValue("");
+    expect(() => runConfigPull(ctx(), [])).toThrow(FatalError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("refuses to write when the target path is a non-regular file", () => {
+    linkProject();
+    const out = path.join(workingDir, ".env.local");
+    fs.mkdirSync(out);
+    const run = vi.spyOn(subprocess, "run").mockReturnValue("");
+    expect(() => runConfigPull(ctx(), [])).toThrow(FatalError);
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("overwrites an existing target when --force is given", () => {
     linkProject();
     fs.writeFileSync(path.join(workingDir, ".env.local"), "OLD=1\n");

@@ -22,9 +22,12 @@ envctl config pull [OPTIONS]
 
 Delegates to the Vercel CLI (`vercel env pull`), which owns decryption and dotenv
 escaping. Because it reads back the provider environment, the pulled file
-includes the environment's **secrets** (not just public vars) — this is the
-"pull existing" strategy that makes a local server actually boot against a real
-environment. The environment name maps to its Vercel target the same way as
+includes the environment's **secrets** (not just public vars) — specifically,
+all config and secrets stored in the Vercel target. **Out-of-band credentials**
+(such as Firebase admin service account keys — `FIREBASE_CLIENT_EMAIL`,
+`FIREBASE_PRIVATE_KEY`) that are not stored in Vercel are not pulled; a server
+requiring them must have those supplied separately. The environment name maps to
+its Vercel target the same way as
 [config push](config-push.md#environment-mapping) (`development → development`,
 `staging`/`preview → preview`, …).
 

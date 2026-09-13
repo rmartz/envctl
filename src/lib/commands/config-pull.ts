@@ -92,11 +92,32 @@ export function runConfigPull(ctx: CommandContext, args: string[]): void {
       "Not a linked Vercel project (no .vercel/project.json). Run `vercel link` first.",
     );
   }
-  if (fs.existsSync(opts.out) && !opts.force) {
-    err(`Refusing to overwrite ${opts.out} without --force.`);
+  // Use lstatSync (not existsSync) to avoid following symlinks: a dangling
+  // symlink returns false from existsSync but lstatSync detects it.
+  let targetStat: fs.Stats | undefined;
+  try {
+    targetStat = fs.lstatSync(opts.out);
+  } catch {
+    // Target does not exist — safe to create.
+  }
+  if (targetStat !== undefined) {
+    if (!targetStat.isFile()) {
+      err(
+        `${opts.out} exists but is not a regular file — refusing to write secrets to it.`,
+      );
+    }
+    if (!opts.force) {
+      err(`Refusing to overwrite ${opts.out} without --force.`);
+    }
   }
 
   const target = vercelTarget(opts.env);
+  // Pre-create the target at 0600 before the CLI writes secrets into it,
+  // closing the window where the CLI creates the file with a permissive umask.
+  // chmodSync handles existing files, since writeFileSync's mode applies only
+  // on creation.
+  fs.writeFileSync(opts.out, "", { mode: 0o600 });
+  fs.chmodSync(opts.out, 0o600);
   log(`Pulling '${opts.env}' (${target}) into ${opts.out}...`);
   try {
     run(
@@ -113,8 +134,8 @@ export function runConfigPull(ctx: CommandContext, args: string[]): void {
     );
   }
 
-  // The file carries live secrets — keep it readable only by its owner.
-  if (fs.existsSync(opts.out)) fs.chmodSync(opts.out, 0o600);
+  // Backstop: some CLIs replace the inode (temp-then-rename); re-lock after write.
+  fs.chmodSync(opts.out, 0o600);
   warnIfNotGitIgnored(opts.out, ctx.workingDir);
   log(`Wrote ${opts.out}`);
 }
