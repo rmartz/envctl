@@ -16,8 +16,8 @@ command by hand. It composes the existing subsystems in order:
    (non-secret) variable to its Vercel target.
 2. **Provider secrets** — the [rotation engine](secrets-rotation.md): initialize
    any configured Firebase / Sentry secret that is **not already present**.
-3. **Local dotenv** — [`env pull`](env.md#pulling-config-for-local-testing):
-   materialize `.env.local` from the `development` environment.
+3. **Local dotenv** — [`config pull`](config-pull.md): materialize `.env.local`
+   from the `development` environment (with `--force`, so a re-run refreshes it).
 4. **Post-push verification** — trigger redeployments so running environments
    pick up the pushed variables. On a project with no existing READY deployment
    (the cold-start case), this phase logs a per-environment skip message rather
@@ -40,7 +40,8 @@ Bootstrap is safe to re-run, including after a partial failure:
   Firebase; `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` for Sentry), it **skips**
   initialization rather than erroring. It never rotates an existing secret —
   rotate one explicitly with [`envctl secrets rotate`](secrets-rotation.md).
-- **env pull** overwrites the local dotenv from the current remote values.
+- **config pull** overwrites the local dotenv (`--force`) from the current remote
+  values.
 
 ## Preflight
 
@@ -74,5 +75,6 @@ deployment to redeploy.
 
 ## Related
 
-- [config-push](config-push.md), [secrets-rotation](secrets-rotation.md),
-  [env](env.md) — the subsystems bootstrap composes across its four phases.
+- [config-push](config-push.md), [config-pull](config-pull.md),
+  [secrets-rotation](secrets-rotation.md), [env](env.md) — the subsystems
+  bootstrap composes across its four phases.

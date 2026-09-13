@@ -4,8 +4,8 @@ import * as path from "path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import * as configPull from "../lib/commands/config-pull";
 import * as configPush from "../lib/commands/config-push";
-import * as envPull from "../lib/commands/env-pull";
 import * as secrets from "../lib/commands/secrets";
 import * as deployments from "../lib/deployments";
 import { runBootstrap, runBootstrapCommand } from "../lib/commands/bootstrap";
@@ -65,7 +65,7 @@ beforeEach(() => {
 
   pushSpy = vi.spyOn(configPush, "runPush").mockResolvedValue(undefined);
   secretsSpy = vi.spyOn(secrets, "runSecrets").mockResolvedValue(undefined);
-  pullSpy = vi.spyOn(envPull, "runEnvPull").mockReturnValue(undefined);
+  pullSpy = vi.spyOn(configPull, "runConfigPull").mockReturnValue(undefined);
   listSpy = vi
     .spyOn(VercelClient.prototype, "listEnvVars")
     .mockResolvedValue(envRecords([]));
@@ -132,6 +132,7 @@ describe("runBootstrap — blank project", () => {
       "development",
       "--out",
       path.join(tmpDir, ".env.local"),
+      "--force",
     ]);
     expect(verifySpy).toHaveBeenCalledTimes(1);
   });

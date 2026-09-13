@@ -27,7 +27,7 @@ Then, from any project directory:
 ```bash
 envctl --version
 envctl config push --dry-run   # preview the public-var sync for the current project
-envctl env pull                # write .env.local from the development environment
+envctl config pull             # write .env.local from the development environment
 envctl secrets rotate          # atomically rotate Firebase/Sentry secrets and redeploy
 envctl secrets init firebase   # bootstrap secrets for a fresh project (auto-detects if omitted)
 ```
@@ -62,7 +62,7 @@ envctl bootstrap
 2. An authenticated `gcloud` with a **pre-existing** Firebase project and service account — if the project uses Firebase (envctl mints keys for existing resources; creating the service account from scratch is tracked in [#70](https://github.com/rmartz/envctl/issues/70))
 3. A Sentry token (`SENTRY_AUTH_TOKEN` or `sentry-cli login`) and a **pre-existing** Sentry project — if the project uses Sentry
 
-`bootstrap` runs four phases in order: push public variables (`config push`), initialize any missing provider secrets (`secrets init`), pull a local dotenv file (`env pull`), and trigger redeployments so running environments pick up the pushed vars (`triggerAndWaitRedeployments` — skipped with a log message on a zero-deployment project). It is idempotent — safe to re-run after a partial failure, and existing secrets are never rotated. Pass `--dry-run` to preview every phase without making changes.
+`bootstrap` runs four phases in order: push public variables (`config push`), initialize any missing provider secrets (`secrets init`), pull a local dotenv file (`config pull`), and trigger redeployments so running environments pick up the pushed vars (`triggerAndWaitRedeployments` — skipped with a log message on a zero-deployment project). It is idempotent — safe to re-run after a partial failure, and existing secrets are never rotated. Pass `--dry-run` to preview every phase without making changes.
 
 See the [Bootstrap subsystem docs](docs/bootstrap.md) for the full option reference.
 
