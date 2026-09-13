@@ -22,6 +22,19 @@ export interface ServiceDecl {
   readonly provider: string;
   /** Environments this service is scoped to; `undefined` ⇒ every environment. */
   readonly environments?: readonly string[];
+  /**
+   * Firebase credential shape — how many vars carry the admin credential (#97).
+   * `json` = one `FIREBASE_SERVICE_ACCOUNT`; `split` = the discrete
+   * projectId/clientEmail/privateKey(/privateKeyId) vars. Undefined ⇒ the
+   * provider default (`json`, for back-compat). Ignored by other providers.
+   */
+  readonly credential?: "split" | "json";
+  /**
+   * Maps each provider credential *field* to the exact env var name the app
+   * reads (#98), e.g. `{ privateKey: "FB_PRIVATE_KEY" }`. Fields left out fall
+   * back to the provider's default name; an empty/absent map ⇒ all defaults.
+   */
+  readonly variables?: Readonly<Record<string, string>>;
 }
 
 /** A provider-typed deployment sink (vercel, …) with its env→target mapping. */

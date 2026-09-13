@@ -2,6 +2,11 @@ import { resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
 import { refreshPreviewDeployments } from "../deployments";
 import {
+  resolveFirebaseCredential,
+  type FirebaseCredentialSpec,
+} from "../firebase-credential";
+import { parseManifest } from "../manifest";
+import {
   listActiveEnvs,
   parseDeploymentEnv,
   vercelTarget,
@@ -34,6 +39,7 @@ async function dispatchRotation(
   init: "all" | "firebase" | "sentry" | undefined,
   envList: string[],
   devSource: string | undefined,
+  firebaseCredential: FirebaseCredentialSpec,
 ): Promise<void> {
   const { deploymentDir, invalidateKeys, workingDir, targetEnv } = opts;
 
@@ -64,6 +70,7 @@ async function dispatchRotation(
           init: "firebase",
           firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
           gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
+          firebaseCredential,
         });
       }
       // development shares staging's Firebase project but gets its own key.
@@ -76,6 +83,7 @@ async function dispatchRotation(
           init: "firebase",
           firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
           gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
+          firebaseCredential,
         });
       }
     }
@@ -98,6 +106,7 @@ async function dispatchRotation(
     provider: init ? undefined : opts.provider,
     firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
     gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
+    firebaseCredential,
     sentryOrg: vars.SENTRY_ORG || undefined,
     sentryProject: vars.SENTRY_PROJECT || undefined,
   });
@@ -137,10 +146,18 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
       devSource,
     );
 
+  // Resolve the Firebase credential contract from the manifest (shape + var
+  // names). With no manifest / no firebase service declared, this is the
+  // back-compat default (json + default names).
+  const firebaseService = parseManifest(opts.deploymentDir).services.find(
+    (s) => s.provider === "firebase",
+  );
+  const firebaseCredential = resolveFirebaseCredential(firebaseService);
+
   log(
     `Target: ${opts.targetEnv} | ${init ? `Initializing ${init}` : `Rotating (invalidate old: ${opts.invalidateKeys})`}`,
   );
-  await dispatchRotation(opts, init, envList, devSource);
+  await dispatchRotation(opts, init, envList, devSource, firebaseCredential);
 
   if (opts.refreshPreviews) {
     const project = detectProject(opts.workingDir);

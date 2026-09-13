@@ -3,19 +3,30 @@ import * as path from "path";
 
 import { err, log, warn } from "./logger";
 import { createGcpKey, deleteGcpKey, listUserManagedGcpKeys } from "./gcp";
+import {
+  firebasePresenceKeys,
+  patternVarNames,
+  resolveFirebaseCredential,
+  type FirebaseCredentialSpec,
+  type FirebasePatternKind,
+} from "./firebase-credential";
+import {
+  detectEnvPattern,
+  detectExistingPattern,
+  getFirebaseKeyIdForEnv,
+  getFirebaseSaForEnv,
+  type FirebaseSaInfo,
+} from "./firebase-vars";
 import type { VercelClient, VercelEnvVar } from "./vercel-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface FirebasePattern {
-  pattern: "json" | "split";
+  pattern: FirebasePatternKind;
   saEmail: string;
   gcpProject: string;
-}
-
-interface FirebaseSaInfo {
-  email: string;
-  gcpProject: string;
+  /** Resolved credential var names for this project (#98). */
+  names: FirebaseCredentialSpec["names"];
 }
 
 export interface OldFirebaseKey {
@@ -25,6 +36,12 @@ export interface OldFirebaseKey {
   gcpProject: string;
 }
 
+interface MintedKey {
+  private_key_id: string;
+  private_key: string;
+  [key: string]: unknown;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function targetEnvs(targetEnv: string): string[] {
@@ -32,122 +49,88 @@ function targetEnvs(targetEnv: string): string[] {
   return [targetEnv];
 }
 
-async function getFirebaseSaForEnv(
+// Write the credential for one environment under the given shape + resolved
+// names. `includeIdentity` also writes the split projectId/clientEmail vars —
+// needed on init and on a json→split migration, skipped on a plain split
+// rotation where those identity vars are unchanged.
+async function writeCredential(
+  client: VercelClient,
+  pattern: FirebasePatternKind,
+  names: FirebaseCredentialSpec["names"],
+  vercelEnv: string,
+  sa: FirebaseSaInfo,
+  minted: MintedKey,
+  envs: VercelEnvVar[],
+  includeIdentity: boolean,
+): Promise<void> {
+  if (pattern === "json") {
+    await client.setEnvForTarget(
+      names.serviceAccount,
+      JSON.stringify(minted),
+      vercelEnv,
+      envs,
+    );
+    return;
+  }
+  if (includeIdentity) {
+    await client.setEnvForTarget(
+      names.projectId,
+      sa.gcpProject,
+      vercelEnv,
+      envs,
+    );
+    await client.setEnvForTarget(names.clientEmail, sa.email, vercelEnv, envs);
+  }
+  await client.setEnvForTarget(
+    names.privateKey,
+    minted.private_key,
+    vercelEnv,
+    envs,
+  );
+  await client.setEnvForTarget(
+    names.privateKeyId,
+    minted.private_key_id,
+    vercelEnv,
+    envs,
+  );
+}
+
+// Delete the given vars for one environment (used to sweep the old shape's
+// now-stale credential vars after a migration).
+async function removeVars(
+  client: VercelClient,
+  keys: string[],
   vercelEnv: string,
   envs: VercelEnvVar[],
-  pattern: "json" | "split",
-  client: VercelClient,
-): Promise<FirebaseSaInfo | null> {
-  if (pattern === "json") {
-    const record = envs.find(
-      (e) =>
-        e.key === "FIREBASE_SERVICE_ACCOUNT" && e.target.includes(vercelEnv),
-    );
-    if (!record) return null;
-    const saJson = JSON.parse(await client.getEnvVarValue(record.id)) as {
-      client_email: string;
-      project_id: string;
-    };
-    return { email: saJson.client_email, gcpProject: saJson.project_id };
+): Promise<void> {
+  for (const key of keys) {
+    const existing = client.findEnvVar(envs, key, vercelEnv);
+    if (existing) await client.deleteEnvVar(existing.id);
   }
-
-  const ceRecord = envs.find(
-    (e) => e.key === "FIREBASE_CLIENT_EMAIL" && e.target.includes(vercelEnv),
-  );
-  if (!ceRecord) return null;
-  const email = await client.getEnvVarValue(ceRecord.id);
-
-  let gcpProject = "";
-  const pidRecord = envs.find(
-    (e) => e.key === "FIREBASE_PROJECT_ID" && e.target.includes(vercelEnv),
-  );
-  if (pidRecord) gcpProject = await client.getEnvVarValue(pidRecord.id);
-  if (!gcpProject) gcpProject = process.env.GCLOUD_PROJECT ?? "";
-
-  return { email, gcpProject };
 }
 
-async function getFirebaseKeyIdForEnv(
-  vercelEnv: string,
+// Read the SA identity (email + GCP project) currently in Vercel, under the
+// existing shape — the account a rotation mints a fresh key for.
+async function detectSaIdentity(
   envs: VercelEnvVar[],
-  pattern: "json" | "split",
+  pattern: FirebasePatternKind,
+  names: FirebaseCredentialSpec["names"],
   client: VercelClient,
-): Promise<string> {
-  if (pattern === "json") {
-    const record = envs.find(
-      (e) =>
-        e.key === "FIREBASE_SERVICE_ACCOUNT" && e.target.includes(vercelEnv),
-    );
-    if (!record) return "";
-    const saJson = JSON.parse(await client.getEnvVarValue(record.id)) as {
-      private_key_id: string;
-    };
-    return saJson.private_key_id;
-  }
-
-  const record = envs.find(
-    (e) => e.key === "FIREBASE_PRIVATE_KEY_ID" && e.target.includes(vercelEnv),
-  );
-  if (!record) return "";
-  return client.getEnvVarValue(record.id);
-}
-
-// ─── Firebase pattern detection ───────────────────────────────────────────────
-
-export function detectFirebasePattern(
-  envs: VercelEnvVar[],
-  client: VercelClient,
-): Promise<FirebasePattern> {
-  return _detectFirebasePattern(envs, client);
-}
-
-async function _detectFirebasePattern(
-  envs: VercelEnvVar[],
-  client: VercelClient,
-): Promise<FirebasePattern> {
-  const saJsonRecords = envs.filter(
-    (e) => e.key === "FIREBASE_SERVICE_ACCOUNT",
-  );
-  const privateKeyRecords = envs.filter(
-    (e) => e.key === "FIREBASE_PRIVATE_KEY",
-  );
-
-  if (saJsonRecords.length > 0) {
-    const saJson = JSON.parse(
-      await client.getEnvVarValue(saJsonRecords[0].id),
-    ) as {
-      client_email: string;
-      project_id: string;
-    };
-    return {
-      pattern: "json",
-      saEmail: saJson.client_email,
-      gcpProject: process.env.GCLOUD_PROJECT ?? saJson.project_id,
-    };
-  }
-
-  if (privateKeyRecords.length > 0) {
-    const ceRecords = envs.filter((e) => e.key === "FIREBASE_CLIENT_EMAIL");
-    if (ceRecords.length === 0)
-      err(
-        "FIREBASE_CLIENT_EMAIL not found in Vercel (required alongside FIREBASE_PRIVATE_KEY)",
-      );
-
-    const saEmail = await client.getEnvVarValue(ceRecords[0].id);
-    let gcpProject = process.env.GCLOUD_PROJECT ?? "";
-    if (!gcpProject) {
-      const pidRecords = envs.filter((e) => e.key === "FIREBASE_PROJECT_ID");
-      if (pidRecords.length > 0)
-        gcpProject = await client.getEnvVarValue(pidRecords[0].id);
+): Promise<FirebaseSaInfo> {
+  for (const env of ["production", "preview", "development"]) {
+    const sa = await getFirebaseSaForEnv(env, envs, pattern, names, client);
+    if (sa?.email) {
+      const gcpProject = process.env.GCLOUD_PROJECT ?? sa.gcpProject;
+      if (!gcpProject)
+        return err(
+          "Could not determine GCP project: set GCLOUD_PROJECT or ensure the Firebase project id var is present in Vercel",
+        );
+      return { email: sa.email, gcpProject };
     }
-    if (!gcpProject)
-      err(
-        "Could not determine GCP project: set GCLOUD_PROJECT or ensure FIREBASE_PROJECT_ID is present in Vercel",
-      );
-    return { pattern: "split", saEmail, gcpProject };
   }
-
-  return err("No Firebase service account keys found in Vercel");
+  return err(
+    "Could not determine Firebase service account identity from Vercel",
+  );
 }
 
 // ─── Firebase rotation ────────────────────────────────────────────────────────
@@ -156,24 +139,46 @@ export async function rotateFirebase(
   targetEnv: string,
   client: VercelClient,
   tempDir: string,
+  spec: FirebaseCredentialSpec = resolveFirebaseCredential(),
 ): Promise<{ oldKeys: OldFirebaseKey[]; fp: FirebasePattern }> {
   log("Rotating Firebase service account keys...");
 
+  const { names } = spec;
+  const declaredPattern = spec.pattern;
   let allEnvs = await client.listEnvVars();
-  const fp = await _detectFirebasePattern(allEnvs.envs, client);
-  log(`  Key pattern: ${fp.pattern}`);
+
+  const existingPattern = detectExistingPattern(allEnvs.envs, names);
+  if (!existingPattern)
+    return err("No Firebase service account keys found in Vercel");
+
+  const identity = await detectSaIdentity(
+    allEnvs.envs,
+    existingPattern,
+    names,
+    client,
+  );
+  const migrating = existingPattern !== declaredPattern;
+  const fp: FirebasePattern = {
+    pattern: declaredPattern,
+    saEmail: identity.email,
+    gcpProject: identity.gcpProject,
+    names,
+  };
+
+  log(
+    `  Credential shape: ${existingPattern}${migrating ? ` → migrating to ${declaredPattern}` : ""}`,
+  );
   log(`  Service account : ${fp.saEmail}`);
   log(`  GCP project     : ${fp.gcpProject}`);
 
+  const presenceKeys = firebasePresenceKeys(spec);
   const oldKeys: OldFirebaseKey[] = [];
   let rotatedAny = false;
-  const firebaseKeyName =
-    fp.pattern === "json" ? "FIREBASE_SERVICE_ACCOUNT" : "FIREBASE_PRIVATE_KEY";
 
   for (const vercelEnv of targetEnvs(targetEnv)) {
     if (targetEnv === "all") {
-      const hasKey = allEnvs.envs.some(
-        (e) => e.key === firebaseKeyName && e.target.includes(vercelEnv),
+      const hasKey = presenceKeys.some((k) =>
+        allEnvs.envs.some((e) => e.key === k && e.target.includes(vercelEnv)),
       );
       if (!hasKey) {
         log(
@@ -183,10 +188,13 @@ export async function rotateFirebase(
       }
     }
 
+    const envPattern =
+      detectEnvPattern(allEnvs.envs, names, vercelEnv) ?? existingPattern;
     const oldKeyId = await getFirebaseKeyIdForEnv(
       vercelEnv,
       allEnvs.envs,
-      fp.pattern,
+      envPattern,
+      names,
       client,
     );
     if (oldKeyId) {
@@ -200,7 +208,8 @@ export async function rotateFirebase(
     let envSa = await getFirebaseSaForEnv(
       vercelEnv,
       allEnvs.envs,
-      fp.pattern,
+      envPattern,
+      names,
       client,
     );
     if (!envSa) {
@@ -209,13 +218,15 @@ export async function rotateFirebase(
           (await getFirebaseSaForEnv(
             "preview",
             allEnvs.envs,
-            fp.pattern,
+            existingPattern,
+            names,
             client,
           )) ??
           (await getFirebaseSaForEnv(
             "development",
             allEnvs.envs,
-            fp.pattern,
+            existingPattern,
+            names,
             client,
           ));
       }
@@ -227,35 +238,30 @@ export async function rotateFirebase(
     const keyFile = path.join(tempDir, `key-${vercelEnv}.json`);
     createGcpKey(keyFile, envSa.email, envSa.gcpProject);
 
-    const newSaJson = JSON.parse(fs.readFileSync(keyFile, "utf-8")) as {
-      private_key_id: string;
-      private_key: string;
-      [key: string]: unknown;
-    };
-    log(`  [${vercelEnv}] New key ID: ${newSaJson.private_key_id}`);
+    const minted = JSON.parse(fs.readFileSync(keyFile, "utf-8")) as MintedKey;
+    log(`  [${vercelEnv}] New key ID: ${minted.private_key_id}`);
 
-    const currentEnvs = await client.listEnvVars();
-    if (fp.pattern === "json") {
-      await client.setEnvForTarget(
-        "FIREBASE_SERVICE_ACCOUNT",
-        JSON.stringify(newSaJson),
+    const migratingEnv = envPattern !== declaredPattern;
+    await writeCredential(
+      client,
+      declaredPattern,
+      names,
+      vercelEnv,
+      envSa,
+      minted,
+      (await client.listEnvVars()).envs,
+      migratingEnv,
+    );
+
+    // On a shape migration, remove the previous shape's now-stale vars so no
+    // orphan credential var is left behind (#97).
+    if (migratingEnv)
+      await removeVars(
+        client,
+        patternVarNames(names, envPattern),
         vercelEnv,
-        currentEnvs.envs,
+        (await client.listEnvVars()).envs,
       );
-    } else {
-      await client.setEnvForTarget(
-        "FIREBASE_PRIVATE_KEY",
-        newSaJson.private_key,
-        vercelEnv,
-        currentEnvs.envs,
-      );
-      await client.setEnvForTarget(
-        "FIREBASE_PRIVATE_KEY_ID",
-        newSaJson.private_key_id,
-        vercelEnv,
-        currentEnvs.envs,
-      );
-    }
 
     if (oldKeyId) {
       oldKeys.push({
@@ -284,6 +290,7 @@ export async function initFirebase(
   tempDir: string,
   saEmailOverride?: string,
   gcpProjectOverride?: string,
+  spec: FirebaseCredentialSpec = resolveFirebaseCredential(),
 ): Promise<void> {
   log("Initializing Firebase service account keys...");
 
@@ -303,18 +310,21 @@ export async function initFirebase(
     const keyFile = path.join(tempDir, `key-${vercelEnv}.json`);
     createGcpKey(keyFile, saEmail, gcpProject);
 
-    const newSaJson = JSON.parse(fs.readFileSync(keyFile, "utf-8")) as {
-      private_key_id: string;
-      [key: string]: unknown;
-    };
-    log(`  [${vercelEnv}] Created key ID: ${newSaJson.private_key_id}`);
-    await client.setEnvForTarget(
-      "FIREBASE_SERVICE_ACCOUNT",
-      JSON.stringify(newSaJson),
+    const minted = JSON.parse(fs.readFileSync(keyFile, "utf-8")) as MintedKey;
+    log(`  [${vercelEnv}] Created key ID: ${minted.private_key_id}`);
+    await writeCredential(
+      client,
+      spec.pattern,
+      spec.names,
       vercelEnv,
+      { email: saEmail, gcpProject },
+      minted,
       currentEnvs.envs,
+      true,
     );
-    log(`  [${vercelEnv}] Pushed FIREBASE_SERVICE_ACCOUNT`);
+    log(
+      `  [${vercelEnv}] Pushed ${spec.pattern === "json" ? spec.names.serviceAccount : "split Firebase credential vars"}`,
+    );
   }
 
   log("Firebase initialization complete.");
@@ -336,16 +346,23 @@ export async function invalidateFirebaseKeys(
   const unsweepable = new Set<string>();
 
   for (const checkEnv of ["production", "preview", "development"]) {
+    // Read each environment under its own shape, so a mid-migration project is
+    // never misread (which could sweep a still-active key).
+    const envPattern = detectEnvPattern(allEnvs.envs, fp.names, checkEnv);
+    if (!envPattern) continue;
+
     const kid = await getFirebaseKeyIdForEnv(
       checkEnv,
       allEnvs.envs,
-      fp.pattern,
+      envPattern,
+      fp.names,
       client,
     );
     const saInfo = await getFirebaseSaForEnv(
       checkEnv,
       allEnvs.envs,
-      fp.pattern,
+      envPattern,
+      fp.names,
       client,
     );
 
@@ -362,7 +379,7 @@ export async function invalidateFirebaseKeys(
   for (const [saEmail, gcpProject] of saPairs) {
     if (unsweepable.has(saEmail)) {
       warn(
-        `Skipping stray-key sweep for ${saEmail} — not all environments have FIREBASE_PRIVATE_KEY_ID tracked.`,
+        `Skipping stray-key sweep for ${saEmail} — not all environments have the key id tracked.`,
       );
       warn("  Rotate all environments first, then re-run to sweep old keys.");
       continue;

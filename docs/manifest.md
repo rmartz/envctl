@@ -31,6 +31,9 @@ deployments: # provider-typed sinks; identity is still discovered per-provider
 
 services: # provider-typed sources of secret vars + rotation
   - provider: firebase
+    credential: split # firebase credential shape: split | json (#97)
+    variables: # map each field → the exact var name the app reads (#98)
+      privateKey: FB_PRIVATE_KEY
   - provider: action-tracking
     environments: [production] # env-scoped: prod-only service
 
@@ -70,9 +73,11 @@ resolved model:
 
 - **New format** — when `deployment/manifest.yml` exists, it is parsed into
   `environments`, `deployments` (each with its explicit env→target map),
-  `services` (with an optional `environments` scope), `variables` and
-  `variableGroups` (each variable carrying its `source` discriminant), plus the
-  per-env `overlays` read from `deployment/{env}.yml`.
+  `services` (with an optional `environments` scope, and — for `firebase` — an
+  optional `credential` shape and field→var-name `variables` map that form the
+  [credential contract](secrets-rotation.md#firebase-credential-contract)),
+  `variables` and `variableGroups` (each variable carrying its `source`
+  discriminant), plus the per-env `overlays` read from `deployment/{env}.yml`.
 - **Legacy back-compat** — with no `manifest.yml`, the legacy `environments.yml`
   (`active:` list) and flat per-env value files map onto the same model: each env
   defaulted through `vercelTarget()` under a single implicit `vercel` deployment,
