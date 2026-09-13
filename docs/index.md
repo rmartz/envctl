@@ -41,8 +41,6 @@ not yet documented here; pages are added as those modules are next touched.
   pairing convention (bare `@AGENTS.md` wrapper).
 - [check-docs](check-docs.md) — enforces OKF frontmatter and `index.md`
   navigability across this `docs/` bundle.
-- [check-release-age](check-release-age.md) — deterministic dependency
-  release-age (cooldown) CI gate.
 
 Other CI gate scripts under `scripts/` (`check-file-length.mjs`,
 `check-package-pins.mjs`, `check-action-pins.mjs`) are not yet documented here;

@@ -57,5 +57,3 @@ per violation.
 
 - [check-agents-md](check-agents-md.md) — enforces the sibling AGENTS.md /
   CLAUDE.md pairing convention.
-- [check-release-age](check-release-age.md) — another standalone CI-gate
-  validator.
