@@ -26,6 +26,9 @@ Format (OKF). One page per script or subsystem.
 - [Environments and local config](env.md) — the in-repo deployment-config model,
   defining environments (`init` / `env add` / `env list`), materializing a local
   dotenv (`env pull`), and auth resolution.
+- [Deployment manifest schema](manifest.md) — the typed `manifest.yml` model,
+  parser (with legacy back-compat), and comment-preserving writer the
+  config-manifest epic builds on (foundation; not yet wired to commands).
 - [Config push](config-push.md) — upserting public (non-secret) env vars from
   YAML to Vercel targets.
 - [Secrets rotation engine](secrets-rotation.md) — atomically minting,
