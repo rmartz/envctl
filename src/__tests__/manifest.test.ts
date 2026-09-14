@@ -305,5 +305,66 @@ describe("manifest", () => {
       expect(fs.existsSync(path.join(deployDir, "manifest.yml"))).toBe(true);
       expect(parseManifest(deployDir).environments).toEqual(["production"]);
     });
+
+    it("preserves an inline comment on a surviving entry when adding one (#104)", () => {
+      write(
+        "manifest.yml",
+        ["environments:", "  - production # primary", "  - staging"].join(
+          "\n",
+        ) + "\n",
+      );
+
+      setManifestEnvironments(deployDir, ["production", "staging", "qa"]);
+
+      const text = fs.readFileSync(
+        path.join(deployDir, "manifest.yml"),
+        "utf-8",
+      );
+      expect(text).toMatch(/production\s+# primary/);
+      expect(parseManifest(deployDir).environments).toEqual([
+        "production",
+        "staging",
+        "qa",
+      ]);
+    });
+
+    it("carries an entry's inline comment with it when the order changes", () => {
+      write(
+        "manifest.yml",
+        ["environments:", "  - production # prod", "  - staging # stg"].join(
+          "\n",
+        ) + "\n",
+      );
+
+      setManifestEnvironments(deployDir, ["staging", "production"]);
+
+      const text = fs.readFileSync(
+        path.join(deployDir, "manifest.yml"),
+        "utf-8",
+      );
+      expect(text).toMatch(/staging\s+# stg/);
+      expect(text).toMatch(/production\s+# prod/);
+      // staging now precedes production.
+      expect(text.indexOf("staging")).toBeLessThan(text.indexOf("production"));
+    });
+
+    it("drops the entry (and its comment) for a removed environment", () => {
+      write(
+        "manifest.yml",
+        ["environments:", "  - production # keep", "  - staging # remove"].join(
+          "\n",
+        ) + "\n",
+      );
+
+      setManifestEnvironments(deployDir, ["production"]);
+
+      const text = fs.readFileSync(
+        path.join(deployDir, "manifest.yml"),
+        "utf-8",
+      );
+      expect(text).toMatch(/production\s+# keep/);
+      expect(text).not.toContain("# remove");
+      expect(parseManifest(deployDir).environments).toEqual(["production"]);
+    });
   });
 });
