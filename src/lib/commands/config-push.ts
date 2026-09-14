@@ -5,9 +5,9 @@ import { resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
 import { listActiveEnvs, parseDeploymentEnv } from "../environments";
 import { err, log, warn } from "../logger";
-import { detectProject } from "../project";
+import type { DeploymentProvider } from "../providers/deployment";
+import { resolveProjectDeployment } from "../providers/registry";
 import { envTargetResolver } from "../targets";
-import { VercelClient } from "../vercel-api";
 import { parsePushArgs, type PushOptions } from "./config-push-args";
 import {
   assertDeploymentPrereqs,
@@ -60,22 +60,22 @@ function dryRunPlan(
 // remote env vars first so writes from a prior environment are reflected.
 // Returns the running totals incremented by this pass.
 async function pushVars(
-  client: VercelClient,
+  deployment: DeploymentProvider,
   label: string,
   target: string,
   vars: Record<string, string>,
 ): Promise<{ created: number; updated: number }> {
   let created = 0;
   let updated = 0;
-  const allEnvs = await client.listEnvVars();
+  const allEnvs = await deployment.listEnvVars();
   for (const key of Object.keys(vars)) {
-    const existing = client.findEnvVar(allEnvs.envs, key, target);
+    const existing = deployment.findEnvVar(allEnvs.envs, key, target);
     if (existing) {
-      await client.updateEnvVar(existing.id, vars[key]);
+      await deployment.updateEnvVar(existing.id, vars[key]);
       log(`  Updated : ${key}`);
       updated++;
     } else {
-      await client.createEnvVar(key, vars[key], target, "plain");
+      await deployment.createEnvVar(key, vars[key], target, "plain");
       log(`  Created : ${key}`);
       created++;
     }
@@ -87,7 +87,7 @@ async function pushVars(
 // Pushes public env vars for a single named environment, skipping (with a
 // warning) when its YAML file is missing or empty.
 async function pushEnv(
-  client: VercelClient,
+  deployment: DeploymentProvider,
   opts: PushOptions,
   envName: string,
   target: string,
@@ -103,12 +103,12 @@ async function pushEnv(
     warn(`No variables found in ${envFile} — skipping`);
     return { created: 0, updated: 0 };
   }
-  return pushVars(client, envName, target, vars);
+  return pushVars(deployment, envName, target, vars);
 }
 
 // Pushes the staging/preview YAML to the implicit development target.
 async function pushDev(
-  client: VercelClient,
+  deployment: DeploymentProvider,
   opts: PushOptions,
   devSource: string,
 ): Promise<{ created: number; updated: number }> {
@@ -126,7 +126,7 @@ async function pushDev(
   }
   log(`Pushing development (from ${devSource}) → development...`);
   return pushVars(
-    client,
+    deployment,
     `development (from ${devSource})`,
     "development",
     vars,
@@ -139,9 +139,12 @@ export async function runPush(opts: PushOptions): Promise<void> {
   const token = resolveVercelToken();
   assertDeploymentPrereqs(opts.deploymentDir, token);
 
-  const project = detectProject(opts.workingDir);
+  const deployment = resolveProjectDeployment(
+    opts.deploymentDir,
+    opts.workingDir,
+  );
   log(
-    `Project: ${project.projectId}${project.teamId ? ` (team: ${project.teamId})` : ""}`,
+    `Project: ${deployment.projectId}${deployment.teamId ? ` (team: ${deployment.teamId})` : ""}`,
   );
 
   const activeEnvs = listActiveEnvs(opts.deploymentDir);
@@ -159,13 +162,12 @@ export async function runPush(opts: PushOptions): Promise<void> {
     return;
   }
 
-  const client = new VercelClient(token, project.projectId, project.teamId);
   let totalCreated = 0;
   let totalUpdated = 0;
 
   for (const envName of envList) {
     const { created, updated } = await pushEnv(
-      client,
+      deployment,
       opts,
       envName,
       resolveTarget(envName),
@@ -175,7 +177,7 @@ export async function runPush(opts: PushOptions): Promise<void> {
   }
 
   if (syncDev && devSource) {
-    const { created, updated } = await pushDev(client, opts, devSource);
+    const { created, updated } = await pushDev(deployment, opts, devSource);
     totalCreated += created;
     totalUpdated += updated;
   }
