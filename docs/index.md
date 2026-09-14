@@ -25,6 +25,9 @@ Format (OKF). One page per script or subsystem.
   initialize any missing secrets, and pull a local dotenv (`bootstrap`).
 - [Environments and local config](env.md) — the in-repo deployment-config model,
   defining environments (`init` / `env add` / `env list`), and auth resolution.
+- [Deployment manifest schema](manifest.md) — the typed `manifest.yml` model,
+  parser (with legacy back-compat), and comment-preserving writer the
+  config-manifest epic builds on (foundation; not yet wired to commands).
 - [Config push](config-push.md) — upserting public (non-secret) env vars from
   YAML to Vercel targets.
 - [Config pull](config-pull.md) — materializing a local dotenv from an
@@ -42,8 +45,6 @@ not yet documented here; pages are added as those modules are next touched.
   pairing convention (bare `@AGENTS.md` wrapper).
 - [check-docs](check-docs.md) — enforces OKF frontmatter and `index.md`
   navigability across this `docs/` bundle.
-- [check-release-age](check-release-age.md) — deterministic dependency
-  release-age (cooldown) CI gate.
 
 Other CI gate scripts under `scripts/` (`check-file-length.mjs`,
 `check-package-pins.mjs`, `check-action-pins.mjs`) are not yet documented here;

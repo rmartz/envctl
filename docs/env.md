@@ -43,6 +43,13 @@ Parsing lives in [`environments.ts`](../src/lib/environments.ts)
 (`listActiveEnvs`, `parseDeploymentEnv`). A blank file degrades to an empty
 result rather than throwing.
 
+> **Foundation in progress.** A richer, single-file
+> [deployment manifest](manifest.md) (`manifest.yml`) — declaring deployments,
+> services, and variable sources/scopes in one place — has landed as a typed
+> schema + parser. It is not yet wired into any command; the flat model
+> described here is still what `config push`, `env pull`, and the rotation
+> engine run on today.
+
 ### Name → target mapping
 
 Each deploy-environment name maps to a Vercel infrastructure target by

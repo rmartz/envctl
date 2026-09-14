@@ -4,11 +4,6 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    # Wait 7 days after a version is published before opening an update PR, so a
-    # compromised release has time to be detected and yanked before we pull it
-    # in (supply-chain exposure reduction).
-    cooldown:
-      default-days: 7
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -87,8 +82,6 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    cooldown:
-      default-days: 7
     commit-message:
       prefix: "chore"
       include: "scope"

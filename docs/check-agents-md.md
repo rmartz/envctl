@@ -52,5 +52,4 @@ violation.
 
 ## Related
 
-- [check-release-age](check-release-age.md) — sibling standalone CI-gate
-  validator.
+- [check-docs](check-docs.md) — sibling standalone CI-gate validator.
