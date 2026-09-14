@@ -44,8 +44,8 @@ Run these before any scenario below. A run that skips them fails deeper in, with
 a less obvious message.
 
 1. **A linked Vercel project.** The project must contain
-   `.vercel/project.json` (created by `vercel link`). `config push`, `env pull`,
-   and secrets flows all require it.
+   `.vercel/project.json` (created by `vercel link`). `config push`,
+   `config pull`, and secrets flows all require it.
 2. **Auth for each provider in play.** Run **`envctl auth status` first** — it
    reports `vercel`, `gcp`, and `sentry`, each as authenticated (with its source)
    or not (with a hint):
@@ -117,7 +117,7 @@ operator needs:
 | `config push`                                                | Upsert public vars to Vercel                              | `--env`, `--deployment-dir`, `--dry-run`                             |
 | `secrets init [firebase\|sentry]`                            | Mint secrets for a fresh project (auto-detect if omitted) | `--env`, `--deployment-dir`, `--no-invalidate`, `--refresh-previews` |
 | `secrets rotate`                                             | Rotate existing secrets, redeploy, invalidate             | `--env`, `--deployment-dir`, `--no-invalidate`, `--refresh-previews` |
-| `env pull`                                                   | Materialize a local dotenv from a Vercel env              | `--env`, `--out`                                                     |
+| `config pull`                                                | Materialize a local dotenv from a Vercel env              | `--env`, `--out`, `--force`                                          |
 | `auth status`                                                | Report provider auth (vercel / gcp / sentry)              | —                                                                    |
 
 Shared flags: **`--env <name|development|all>`** selects the deploy
@@ -151,7 +151,7 @@ envctl init                       # scaffold deployment/ (seeds a production env
 envctl config push --dry-run      # preview the plan — no Vercel calls
 envctl config push                # upsert the public vars to every target
 envctl secrets init               # auto-detect providers and mint their secrets
-envctl env pull                   # write .env.local from the development env
+envctl config pull                # write .env.local from the development env
 ```
 
 **How you know it worked:**
@@ -163,7 +163,7 @@ envctl env pull                   # write .env.local from the development env
   redeploy, so envctl warns rather than deploying; the pushed vars and minted
   keys are consumed by the **first real Vercel build**. This is expected on a
   cold start, not a failure.
-- `env pull` writes `.env.local` containing the development environment's vars.
+- `config pull` writes `.env.local` containing the development environment's vars.
 
 > A future single-command path for this whole sequence (a blank-env bootstrap
 > orchestrator) is tracked in
@@ -266,16 +266,20 @@ build).
 ### F. Pull config for local development
 
 Materialize a local dotenv from a Vercel environment for local testing.
-`env pull` wraps `vercel env pull`, which owns decryption and dotenv escaping.
+`config pull` wraps `vercel env pull`, which owns decryption and dotenv escaping.
 
 ```bash
-envctl env pull                             # writes .env.local from development
-envctl env pull --env staging --out .env    # a different env / output path
+envctl config pull                             # writes .env.local from development
+envctl config pull --env staging --out .env    # a different env / output path
+envctl config pull --force                     # overwrite an existing dotenv
 ```
 
 **How you know it worked:** the target dotenv file (`.env.local` by default)
-exists and contains the environment's variables. Requires the Vercel CLI on
-`PATH` and a linked project; it runs non-interactively and never prompts.
+exists and contains the environment's variables. It is written owner-only
+(`0600`) and `config pull` warns if the file is not gitignored. `config pull`
+refuses to overwrite an existing file without `--force`. Requires the Vercel CLI
+on `PATH` and a linked project; it runs non-interactively and never prompts.
+(`env pull` remains as a deprecated alias.)
 
 ---
 
@@ -322,9 +326,11 @@ Full comparison: [rotate vs. init](secrets-rotation.md#rotate-vs-init).
 
 ## Related
 
-- [env](env.md) — the deployment-config model, `init`/`env add`/`env list`,
-  `env pull`, and auth resolution.
+- [env](env.md) — the deployment-config model, `init`/`env add`/`env list`, and
+  auth resolution.
 - [config-push](config-push.md) — the public-var upsert mechanism.
+- [config-pull](config-pull.md) — materializing an environment into a local
+  dotenv for testing.
 - [secrets-rotation](secrets-rotation.md) — the atomic mint→deploy→verify→
   invalidate engine behind `secrets init` / `secrets rotate`.
 - [Vision](https://github.com/rmartz/envctl/issues/1) — desired-functionality

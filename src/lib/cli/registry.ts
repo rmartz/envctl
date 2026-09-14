@@ -4,9 +4,9 @@
 
 import { runAuthStatus } from "../commands/auth";
 import { runBootstrapCommand } from "../commands/bootstrap";
+import { runConfigPull, runEnvPullDeprecated } from "../commands/config-pull";
 import { configPushCommand } from "../commands/config-push";
 import { runEnvAdd, runEnvList } from "../commands/env";
-import { runEnvPull } from "../commands/env-pull";
 import { runInit } from "../commands/init";
 import { runSecretsInit, runSecretsRotate } from "../commands/secrets";
 
@@ -46,6 +46,11 @@ export function buildRegistry(): Registry {
           summary: "Push public (non-secret) env vars to the provider",
           run: configPushCommand,
         },
+        {
+          name: "pull",
+          summary: "Materialize an environment into a local dotenv file",
+          run: runConfigPull,
+        },
       ],
     },
     {
@@ -64,8 +69,8 @@ export function buildRegistry(): Registry {
         },
         {
           name: "pull",
-          summary: "Pull an environment's vars into a local dotenv file",
-          run: runEnvPull,
+          summary: "Deprecated: use 'config pull'",
+          run: runEnvPullDeprecated,
         },
       ],
     },

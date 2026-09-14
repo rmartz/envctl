@@ -1,7 +1,7 @@
 ---
 type: Subsystem
 title: Environments and local config
-description: The in-repo deployment-config model, defining environments, and materializing a local dotenv file.
+description: The in-repo deployment-config model, defining environments, and auth resolution.
 resource: src/lib/commands/env.ts
 tags: [environments, config, dotenv, vercel, local-development]
 ---
@@ -9,9 +9,10 @@ tags: [environments, config, dotenv, vercel, local-development]
 # Environments and local config
 
 envctl's config-as-code foundation: how a project **declares** its deploy
-environments in its own source tree, and how a developer **pulls** an
-environment down for local testing. Both [config-push](config-push.md) and the
-[secrets rotation engine](secrets-rotation.md) read the model described here.
+environments in its own source tree. Both [config-push](config-push.md) and the
+[secrets rotation engine](secrets-rotation.md) read the model described here, and
+[config-pull](config-pull.md) materializes any of these environments into a local
+dotenv for testing.
 
 ## Deployment configuration model
 
@@ -102,20 +103,10 @@ envctl env list                               # list environments and their targ
 
 ## Pulling config for local testing
 
-```bash
-envctl env pull [--env <name>] [--out <path>]
-```
-
-`env pull` ([env-pull.ts](../src/lib/commands/env-pull.ts)) materializes a local
-dotenv file from a Vercel environment for local development. It **wraps the
-Vercel CLI** (`vercel env pull`), which owns decryption and dotenv escaping.
-
-- `--env` (default `development`) is mapped to its Vercel target the same way as
-  config push.
-- `--out` (default `.env.local`) is resolved against the project root.
-- Preflight requires the Vercel CLI on `PATH` and a linked project
-  (`.vercel/project.json`, from `vercel link`). The CLI is invoked
-  non-interactively (`--yes`, `VERCEL_NON_INTERACTIVE=1`) so it never prompts.
+Materializing a local dotenv for local testing is the inverse of pushing config,
+so it lives with [config push](config-push.md) as **[`config pull`](config-pull.md)**
+(`envctl config pull`). The former `envctl env pull` spelling still works as a
+deprecated alias.
 
 ## Authentication
 
@@ -135,5 +126,7 @@ source; it never prints the token value.
 
 - [config-push](config-push.md) — pushing these environments' public vars to
   Vercel.
+- [config-pull](config-pull.md) — materializing an environment into a local
+  dotenv for testing.
 - [secrets-rotation](secrets-rotation.md) — minting and rotating the private
   credentials.

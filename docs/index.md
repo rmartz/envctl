@@ -24,13 +24,14 @@ Format (OKF). One page per script or subsystem.
 - [Bootstrap](bootstrap.md) — one-command end-to-end setup: push public config,
   initialize any missing secrets, and pull a local dotenv (`bootstrap`).
 - [Environments and local config](env.md) — the in-repo deployment-config model,
-  defining environments (`init` / `env add` / `env list`), materializing a local
-  dotenv (`env pull`), and auth resolution.
+  defining environments (`init` / `env add` / `env list`), and auth resolution.
 - [Deployment manifest schema](manifest.md) — the typed `manifest.yml` model,
   parser (with legacy back-compat), and comment-preserving writer the
   config-manifest epic builds on (foundation; not yet wired to commands).
 - [Config push](config-push.md) — upserting public (non-secret) env vars from
   YAML to Vercel targets.
+- [Config pull](config-pull.md) — materializing a local dotenv from an
+  environment for local testing (`config pull`; the inverse of `config push`).
 - [Secrets rotation engine](secrets-rotation.md) — atomically minting,
   deploying, verifying, and invalidating Firebase and Sentry credentials
   (`secrets rotate` / `secrets init`).

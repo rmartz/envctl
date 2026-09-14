@@ -14,8 +14,8 @@ import { commandExists } from "../subprocess";
 import { VercelClient } from "../vercel-api";
 import { parseBootstrapArgs } from "./bootstrap-args";
 import type { BootstrapOptions } from "./bootstrap-args";
+import { runConfigPull } from "./config-pull";
 import { runPush } from "./config-push";
-import { runEnvPull } from "./env-pull";
 import {
   assertDeploymentPrereqs,
   findDevSource,
@@ -160,11 +160,14 @@ function bootstrapPull(opts: BootstrapOptions): void {
     log(`  Would pull development into ${opts.out}.`);
     return;
   }
-  runEnvPull({ workingDir: opts.workingDir }, [
+  // Bootstrap is idempotent and always refreshes the local dotenv, so it
+  // overwrites any existing file (--force).
+  runConfigPull({ workingDir: opts.workingDir }, [
     "--env",
     "development",
     "--out",
     opts.out,
+    "--force",
   ]);
 }
 
