@@ -1,8 +1,14 @@
 import * as fs from "fs";
 
-import { Document, isScalar, isSeq, parseDocument, YAMLSeq } from "yaml";
+import { Document, isMap, isScalar, isSeq, parseDocument, YAMLSeq } from "yaml";
 
 import { manifestFilePath } from "./parse";
+
+function loadOrCreate(file: string): Document {
+  if (!fs.existsSync(file)) return new Document({});
+  const text = fs.readFileSync(file, "utf-8");
+  return text.trim() === "" ? new Document({}) : parseDocument(text);
+}
 
 // Update the `environments:` list in manifest.yml, preserving comments and key
 // ordering in an existing file. Uses the `yaml` Document API — the comment-safe
@@ -19,13 +25,7 @@ export function setManifestEnvironments(
   environments: string[],
 ): void {
   const file = manifestFilePath(deploymentDir);
-  let doc: Document;
-  if (fs.existsSync(file)) {
-    const text = fs.readFileSync(file, "utf-8");
-    doc = text.trim() === "" ? new Document({}) : parseDocument(text);
-  } else {
-    doc = new Document({});
-  }
+  const doc = loadOrCreate(file);
 
   // Index the surviving entries by scalar value so their nodes — and the inline
   // comments attached to them — can be reused in the rebuilt sequence.
@@ -49,6 +49,40 @@ export function setManifestEnvironments(
     }
   }
   doc.set("environments", seq);
+
+  fs.writeFileSync(file, doc.toString());
+}
+
+// Persist an environment's provider target into the manifest's authoritative
+// `deployments[].targets` map (#87) — the write behind `env add --target`. The
+// vercel deployment entry (and its `targets` map) is created if absent;
+// otherwise the single target is upserted in place, preserving comments and
+// every other key. Only the target is recorded here — the active-env list stays
+// in environments.yml.
+export function setManifestTarget(
+  deploymentDir: string,
+  envName: string,
+  target: string,
+): void {
+  const file = manifestFilePath(deploymentDir);
+  const doc = loadOrCreate(file);
+
+  const deployments = doc.get("deployments", true);
+  const idx = isSeq(deployments)
+    ? deployments.items.findIndex(
+        (item) => isMap(item) && item.get("provider") === "vercel",
+      )
+    : -1;
+
+  if (idx !== -1) {
+    doc.setIn(["deployments", idx, "targets", envName], target);
+  } else if (isSeq(deployments)) {
+    deployments.add({ provider: "vercel", targets: { [envName]: target } });
+  } else {
+    doc.set("deployments", [
+      { provider: "vercel", targets: { [envName]: target } },
+    ]);
+  }
 
   fs.writeFileSync(file, doc.toString());
 }

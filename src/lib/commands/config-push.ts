@@ -3,13 +3,10 @@ import * as path from "path";
 
 import { resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
-import {
-  listActiveEnvs,
-  parseDeploymentEnv,
-  vercelTarget,
-} from "../environments";
+import { listActiveEnvs, parseDeploymentEnv } from "../environments";
 import { err, log, warn } from "../logger";
 import { detectProject } from "../project";
+import { envTargetResolver } from "../targets";
 import { VercelClient } from "../vercel-api";
 import { parsePushArgs, type PushOptions } from "./config-push-args";
 import {
@@ -39,6 +36,7 @@ function dryRunPlan(
   envList: string[],
   syncDev: boolean,
   devSource: string | undefined,
+  resolveTarget: (envName: string) => string,
 ): void {
   log("Dry run — no changes will be made");
   for (const envName of envList) {
@@ -47,7 +45,7 @@ function dryRunPlan(
       warn(`No config file for '${envName}': ${envFile}`);
       continue;
     }
-    log(`Would push ${envName} → ${vercelTarget(envName)}:`);
+    log(`Would push ${envName} → ${resolveTarget(envName)}:`);
     const vars = parseDeploymentEnv(opts.deploymentDir, envName);
     for (const key of Object.keys(vars)) log(`  Would push: ${key}`);
   }
@@ -92,13 +90,13 @@ async function pushEnv(
   client: VercelClient,
   opts: PushOptions,
   envName: string,
+  target: string,
 ): Promise<{ created: number; updated: number }> {
   const envFile = path.join(opts.deploymentDir, `${envName}.yml`);
   if (!fs.existsSync(envFile)) {
     warn(`No config file for '${envName}': ${envFile} — skipping`);
     return { created: 0, updated: 0 };
   }
-  const target = vercelTarget(envName);
   log(`Pushing ${envName} → ${target}...`);
   const vars = parseDeploymentEnv(opts.deploymentDir, envName);
   if (Object.keys(vars).length === 0) {
@@ -152,11 +150,12 @@ export async function runPush(opts: PushOptions): Promise<void> {
       `No active environments found in ${opts.deploymentDir}/environments.yml`,
     );
 
-  const devSource = findDevSource(activeEnvs);
+  const resolveTarget = envTargetResolver(opts.deploymentDir);
+  const devSource = findDevSource(opts.deploymentDir, activeEnvs);
   const { envList, syncDev } = resolvePlan(opts, activeEnvs, devSource);
 
   if (opts.dryRun) {
-    dryRunPlan(opts, envList, syncDev, devSource);
+    dryRunPlan(opts, envList, syncDev, devSource, resolveTarget);
     return;
   }
 
@@ -165,7 +164,12 @@ export async function runPush(opts: PushOptions): Promise<void> {
   let totalUpdated = 0;
 
   for (const envName of envList) {
-    const { created, updated } = await pushEnv(client, opts, envName);
+    const { created, updated } = await pushEnv(
+      client,
+      opts,
+      envName,
+      resolveTarget(envName),
+    );
     totalCreated += created;
     totalUpdated += updated;
   }

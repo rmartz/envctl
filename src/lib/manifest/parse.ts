@@ -171,7 +171,15 @@ function parseManifestFile(
   const content = fs.readFileSync(file, "utf-8");
   const parsed: unknown = content.trim() === "" ? {} : parse(content);
   const raw = (isRecord(parsed) ? parsed : {}) as RawManifest;
-  const environments = asStringArray(raw.environments);
+  // When the manifest has no `environments` key (e.g. created by `env add
+  // --target` which writes only a `deployments` block), fall back to
+  // environments.yml so the hybrid state returns the correct env list.
+  const environments =
+    raw.environments !== undefined
+      ? asStringArray(raw.environments)
+      : fs.existsSync(path.join(deploymentDir, "environments.yml"))
+        ? listActiveEnvs(deploymentDir)
+        : [];
   return {
     environments,
     deployments: parseDeployments(raw.deployments),

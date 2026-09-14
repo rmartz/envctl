@@ -4,7 +4,11 @@ import * as path from "path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { parseManifest, setManifestEnvironments } from "../../lib/manifest";
+import {
+  parseManifest,
+  setManifestEnvironments,
+  setManifestTarget,
+} from "../../lib/manifest";
 
 describe("manifest", () => {
   let deployDir: string;
@@ -119,6 +123,56 @@ describe("manifest", () => {
       expect(text).toMatch(/production\s+# keep/);
       expect(text).not.toContain("# remove");
       expect(parseManifest(deployDir).environments).toEqual(["production"]);
+    });
+  });
+
+  describe("setManifestTarget", () => {
+    it("creates a vercel deployment with the target when no manifest exists", () => {
+      setManifestTarget(deployDir, "demo", "preview");
+      expect(parseManifest(deployDir).deployments).toEqual([
+        { provider: "vercel", targets: { demo: "preview" } },
+      ]);
+    });
+
+    it("parseManifest falls back to environments.yml when the manifest has no environments key (hybrid state)", () => {
+      write("environments.yml", "active:\n  - production\n  - demo\n");
+
+      // setManifestTarget creates a targets-only manifest.yml with no environments key.
+      setManifestTarget(deployDir, "demo", "preview");
+
+      const manifest = parseManifest(deployDir);
+      // Must not silently return [] — must read from environments.yml.
+      expect(manifest.environments).toEqual(["production", "demo"]);
+      expect(manifest.deployments).toEqual([
+        { provider: "vercel", targets: { demo: "preview" } },
+      ]);
+    });
+
+    it("upserts a target into an existing vercel deployment, preserving other keys and comments", () => {
+      write(
+        "manifest.yml",
+        [
+          "# manifest",
+          "deployments:",
+          "  - provider: vercel # sink",
+          "    targets: { production: production }",
+        ].join("\n") + "\n",
+      );
+
+      setManifestTarget(deployDir, "qa", "preview");
+
+      const text = fs.readFileSync(
+        path.join(deployDir, "manifest.yml"),
+        "utf-8",
+      );
+      expect(text).toContain("# manifest");
+      expect(text).toContain("# sink");
+      expect(parseManifest(deployDir).deployments).toEqual([
+        {
+          provider: "vercel",
+          targets: { production: "production", qa: "preview" },
+        },
+      ]);
     });
   });
 });
