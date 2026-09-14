@@ -47,6 +47,21 @@ class FakeVercel {
     this.envs = this.envs.filter((e) => e.id !== id);
     return Promise.resolve();
   }
+  removeEnvVarFromTarget(
+    id: string,
+    existingTargets: string[],
+    vercelEnv: string,
+  ): Promise<void> {
+    const remaining = existingTargets.filter((t) => t !== vercelEnv);
+    if (remaining.length === 0) {
+      this.envs = this.envs.filter((e) => e.id !== id);
+    } else {
+      this.envs = this.envs.map((e) =>
+        e.id === id ? { ...e, target: remaining } : e,
+      );
+    }
+    return Promise.resolve();
+  }
   setEnvForTarget(
     key: string,
     value: string,
@@ -254,6 +269,68 @@ describe("firebase credential provisioning", () => {
       });
       await rotateFirebase("production", asClient(fake), tmp, spec);
       expect(keysFor(fake, "production")).toEqual(["FIREBASE_SERVICE_ACCOUNT"]);
+    });
+
+    it("is retry-safe for an interrupted split→json migration (item 4)", async () => {
+      // Simulates an interrupted split→json: json var was already written but
+      // split vars were not yet removed. A retry should detect json (existing
+      // pattern = declared), NOT set migratingEnv, yet still remove the stale
+      // split vars unconditionally.
+      const fake = new FakeVercel([
+        envVar("e1", "FIREBASE_PROJECT_ID", "proj-x"),
+        envVar("e2", "FIREBASE_CLIENT_EMAIL", "sa@proj.iam"),
+        envVar("e3", "FIREBASE_PRIVATE_KEY", "old-pk"),
+        envVar("e4", "FIREBASE_PRIVATE_KEY_ID", "old-key-id"),
+        envVar(
+          "e5",
+          "FIREBASE_SERVICE_ACCOUNT",
+          JSON.stringify({
+            client_email: "sa@proj.iam",
+            project_id: "proj-x",
+            private_key_id: "partial-key",
+          }),
+        ),
+      ]);
+      const spec = resolveFirebaseCredential({
+        provider: "firebase",
+        credential: "json",
+      });
+      await rotateFirebase("production", asClient(fake), tmp, spec);
+      expect(keysFor(fake, "production")).toEqual(["FIREBASE_SERVICE_ACCOUNT"]);
+    });
+
+    it("does not delete a shared-target record's other targets on removal (item 5)", async () => {
+      // A shared record covers both production and preview. Rotating production
+      // should only remove production from the record, not delete it entirely.
+      const shared: VercelEnvVar = {
+        id: "shared-1",
+        key: "FIREBASE_SERVICE_ACCOUNT",
+        value: JSON.stringify({
+          client_email: "sa@proj.iam",
+          project_id: "proj-x",
+          private_key_id: "old-json-key",
+        }),
+        target: ["production", "preview"],
+        type: "encrypted",
+      };
+      const fake = new FakeVercel([shared]);
+      const spec = resolveFirebaseCredential({
+        provider: "firebase",
+        credential: "split",
+      });
+      await rotateFirebase("production", asClient(fake), tmp, spec);
+      // The json service-account record should now only cover preview (not deleted)
+      const remaining = fake.envs.find(
+        (e) => e.key === "FIREBASE_SERVICE_ACCOUNT",
+      );
+      expect(remaining?.target).toEqual(["preview"]);
+      // And the new split vars should only cover production
+      expect(keysFor(fake, "production")).toEqual([
+        "FIREBASE_CLIENT_EMAIL",
+        "FIREBASE_PRIVATE_KEY",
+        "FIREBASE_PRIVATE_KEY_ID",
+        "FIREBASE_PROJECT_ID",
+      ]);
     });
 
     it("round-trips custom-named split vars through init then rotate (#98)", async () => {

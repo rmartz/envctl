@@ -2,7 +2,12 @@ import { resolveSentryToken, resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
 import { triggerAndWaitRedeployments } from "../deployments";
 import { listActiveEnvs } from "../environments";
+import {
+  firebasePresenceKeys,
+  resolveFirebaseCredential,
+} from "../firebase-credential";
 import { err, log } from "../logger";
+import { parseManifest } from "../manifest";
 import { detectProject } from "../project";
 import { commandExists } from "../subprocess";
 import { VercelClient } from "../vercel-api";
@@ -51,9 +56,12 @@ const ALL_VERCEL_TARGETS = ["production", "preview", "development"] as const;
 // Reports which providers already have their secret present in the Vercel
 // project, scoped to the requested target(s) so a partial prior run (e.g. key
 // exists for production only) does not incorrectly skip other environments.
+// Uses the manifest's resolved Firebase credential names so a project with
+// custom var names (e.g. `privateKey: FB_PK`) is correctly detected.
 async function detectExistingSecrets(
   client: VercelClient,
   targetEnv: string,
+  deploymentDir: string,
 ): Promise<Configured> {
   const { envs } = await client.listEnvVars();
   const isPresent = (key: string): boolean => {
@@ -64,10 +72,12 @@ async function detectExistingSecrets(
     }
     return envs.some((e) => e.key === key && e.target.includes(targetEnv));
   };
+  const firebaseService = parseManifest(deploymentDir).services.find(
+    (s) => s.provider === "firebase",
+  );
+  const firebaseSpec = resolveFirebaseCredential(firebaseService);
   return {
-    firebase: ["FIREBASE_SERVICE_ACCOUNT", "FIREBASE_PRIVATE_KEY"].some(
-      isPresent,
-    ),
+    firebase: firebasePresenceKeys(firebaseSpec).some(isPresent),
     sentry: ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"].some(isPresent),
   };
 }
@@ -95,7 +105,11 @@ async function bootstrapSecrets(
 
   const project = detectProject(opts.workingDir);
   const client = new VercelClient(token, project.projectId, project.teamId);
-  const present = await detectExistingSecrets(client, opts.targetEnv);
+  const present = await detectExistingSecrets(
+    client,
+    opts.targetEnv,
+    opts.deploymentDir,
+  );
 
   for (const service of services) {
     if (present[service]) {

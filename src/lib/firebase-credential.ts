@@ -53,6 +53,9 @@ export interface FirebaseCredentialSpec {
  * A missing declaration (or missing fields) falls back to the default: the
  * `split` shape with the default names. Declaring `credential: json` opts into
  * the deprecated shape (see {@link isDeprecatedCredential}).
+ *
+ * Throws if any override value is empty or if two fields resolve to the same
+ * var name — both produce unusable Vercel credentials.
  */
 export function resolveFirebaseCredential(
   service?: ServiceDecl,
@@ -60,9 +63,30 @@ export function resolveFirebaseCredential(
   const pattern: FirebasePatternKind =
     service?.credential ?? DEFAULT_CREDENTIAL_PATTERN;
   const overrides = service?.variables ?? {};
+
+  for (const [field, name] of Object.entries(overrides)) {
+    if (!name || !name.trim())
+      throw new Error(
+        `Firebase credential override for '${field}' must not be empty`,
+      );
+  }
+
   const names = {} as Record<FirebaseField, string>;
   for (const field of ALL_FIELDS)
     names[field] = overrides[field] ?? DEFAULT_FIREBASE_VAR_NAMES[field];
+
+  const seen = new Set<string>();
+  for (const [field, name] of Object.entries(names) as [
+    FirebaseField,
+    string,
+  ][]) {
+    if (seen.has(name))
+      throw new Error(
+        `Firebase credential var names must be unique; '${name}' is mapped to multiple fields (including '${field}')`,
+      );
+    seen.add(name);
+  }
+
   return { pattern, names };
 }
 
@@ -75,8 +99,6 @@ export function isDeprecatedCredential(service?: ServiceDecl): boolean {
   return service?.credential === "json";
 }
 
-const unique = (values: string[]): string[] => [...new Set(values)];
-
 /** The var names a shape writes to Vercel. */
 export function patternVarNames(
   names: FirebaseCredentialSpec["names"],
@@ -86,15 +108,13 @@ export function patternVarNames(
 }
 
 /**
- * Keys whose presence in Vercel means Firebase is provisioned. Covers the
- * declared shape's primary key vars *and* the default names, so a project on
- * defaults, on custom names, or mid-migration is all still detected.
+ * Keys whose presence in Vercel means Firebase is provisioned under the
+ * declared contract. Uses only the resolved names so the presence check is
+ * consistent with what {@link detectExistingPattern} can find — advertising
+ * legacy default names for a custom-named contract would cause
+ * `rotation.run` to detect Firebase as present but then fail inside
+ * `rotateFirebase` when the legacy var can't be resolved via the custom names.
  */
 export function firebasePresenceKeys(spec: FirebaseCredentialSpec): string[] {
-  return unique([
-    spec.names.serviceAccount,
-    spec.names.privateKey,
-    DEFAULT_FIREBASE_VAR_NAMES.serviceAccount,
-    DEFAULT_FIREBASE_VAR_NAMES.privateKey,
-  ]);
+  return [spec.names.serviceAccount, spec.names.privateKey];
 }

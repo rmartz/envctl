@@ -38,6 +38,24 @@ describe("resolveFirebaseCredential", () => {
     expect(spec.names.projectId).toBe("FB_PID");
     expect(spec.names.clientEmail).toBe("FIREBASE_CLIENT_EMAIL");
   });
+
+  it("throws on an empty override value", () => {
+    expect(() =>
+      resolveFirebaseCredential({
+        provider: "firebase",
+        variables: { privateKey: "" },
+      }),
+    ).toThrow(/privateKey/);
+  });
+
+  it("throws when two fields are mapped to the same var name", () => {
+    expect(() =>
+      resolveFirebaseCredential({
+        provider: "firebase",
+        variables: { privateKey: "FB_PK", privateKeyId: "FB_PK" },
+      }),
+    ).toThrow(/unique/);
+  });
 });
 
 describe("isDeprecatedCredential", () => {
@@ -75,7 +93,15 @@ describe("patternVarNames", () => {
 });
 
 describe("firebasePresenceKeys", () => {
-  it("covers a custom private-key name alongside the defaults", () => {
+  it("returns the resolved serviceAccount and privateKey names for default spec", () => {
+    const spec = resolveFirebaseCredential();
+    expect(firebasePresenceKeys(spec)).toEqual([
+      "FIREBASE_SERVICE_ACCOUNT",
+      "FIREBASE_PRIVATE_KEY",
+    ]);
+  });
+
+  it("returns only the custom resolved names for a custom-named spec", () => {
     const spec = resolveFirebaseCredential({
       provider: "firebase",
       credential: "split",
@@ -83,5 +109,8 @@ describe("firebasePresenceKeys", () => {
     });
     expect(firebasePresenceKeys(spec)).toContain("FB_PK");
     expect(firebasePresenceKeys(spec)).toContain("FIREBASE_SERVICE_ACCOUNT");
+    // Legacy default name must not appear — it is inconsistent with what
+    // detectExistingPattern can find via the resolved names.
+    expect(firebasePresenceKeys(spec)).not.toContain("FIREBASE_PRIVATE_KEY");
   });
 });

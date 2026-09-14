@@ -49,7 +49,7 @@ export interface RotationOptions {
   provider?: "firebase" | "sentry";
   /**
    * The resolved Firebase credential contract (shape + var names) from the
-   * manifest (#97/#98). Defaults to the provider default (json + default names)
+   * manifest (#97/#98). Defaults to the provider default (split + default names)
    * when unset, so callers without a manifest keep today's behavior.
    */
   firebaseCredential?: FirebaseCredentialSpec;

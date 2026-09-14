@@ -95,8 +95,10 @@ async function writeCredential(
   );
 }
 
-// Delete the given vars for one environment (used to sweep the old shape's
-// now-stale credential vars after a migration).
+// Remove the given vars for one environment (used to sweep the old shape's
+// now-stale credential vars after a migration). Vercel env-var records can
+// cover multiple targets; for shared records only the specific target is
+// removed to avoid silently dropping the credential from other environments.
 async function removeVars(
   client: VercelClient,
   keys: string[],
@@ -105,7 +107,12 @@ async function removeVars(
 ): Promise<void> {
   for (const key of keys) {
     const existing = client.findEnvVar(envs, key, vercelEnv);
-    if (existing) await client.deleteEnvVar(existing.id);
+    if (existing)
+      await client.removeEnvVarFromTarget(
+        existing.id,
+        existing.target,
+        vercelEnv,
+      );
   }
 }
 
@@ -253,15 +260,20 @@ export async function rotateFirebase(
       migratingEnv,
     );
 
-    // On a shape migration, remove the previous shape's now-stale vars so no
-    // orphan credential var is left behind (#97).
-    if (migratingEnv)
-      await removeVars(
-        client,
-        patternVarNames(names, envPattern),
-        vercelEnv,
-        (await client.listEnvVars()).envs,
-      );
+    // Always remove the non-declared shape's vars after writing the declared
+    // shape. removeVars is idempotent (skips absent vars), so this is safe for
+    // plain rotations too. Removing unconditionally (not only when migrating)
+    // makes the migration retry-safe: an interrupted split→json migration
+    // leaves both shapes present; on retry detectEnvPattern returns json
+    // (migratingEnv = false), but the stale split vars still need to go.
+    const stalePattern: FirebasePatternKind =
+      declaredPattern === "json" ? "split" : "json";
+    await removeVars(
+      client,
+      patternVarNames(names, stalePattern),
+      vercelEnv,
+      (await client.listEnvVars()).envs,
+    );
 
     if (oldKeyId) {
       oldKeys.push({
