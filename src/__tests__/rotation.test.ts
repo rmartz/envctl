@@ -307,7 +307,7 @@ describe("run — --init happy paths", () => {
     vi.restoreAllMocks();
   });
 
-  it("--init firebase creates a GCP key, pushes FIREBASE_SERVICE_ACCOUNT once (not per-iteration), and triggers a redeployment", async () => {
+  it("--init firebase creates a GCP key, pushes the split credential vars once (not per-iteration), and triggers a redeployment", async () => {
     process.env.FIREBASE_SA_EMAIL = "sa@my-project.iam.gserviceaccount.com";
     process.env.GCLOUD_PROJECT = "my-project";
 
@@ -365,11 +365,18 @@ describe("run — --init happy paths", () => {
     // check, and once in initFirebase before the loop (not once per iteration)
     expect(listEnvVarsMock).toHaveBeenCalledTimes(2);
 
-    // setEnvForTarget should be called once for the single targeted env
-    expect(setEnvMock).toHaveBeenCalledOnce();
+    // The default (split) shape pushes its four discrete vars for the single
+    // targeted env — including the new key id under FIREBASE_PRIVATE_KEY_ID.
+    expect(setEnvMock).toHaveBeenCalledTimes(4);
     expect(setEnvMock).toHaveBeenCalledWith(
-      "FIREBASE_SERVICE_ACCOUNT",
-      expect.stringContaining("key-abc"),
+      "FIREBASE_PRIVATE_KEY_ID",
+      "key-abc",
+      "production",
+      expect.any(Array),
+    );
+    expect(setEnvMock).toHaveBeenCalledWith(
+      "FIREBASE_PROJECT_ID",
+      "my-project",
       "production",
       expect.any(Array),
     );

@@ -82,6 +82,31 @@ describe("manifest", () => {
       ]);
     });
 
+    it("parses a service's credential shape and field→var-name map", () => {
+      write(
+        "manifest.yml",
+        [
+          "environments: [production]",
+          "services:",
+          "  - provider: firebase",
+          "    credential: split",
+          "    variables:",
+          "      privateKey: FB_PRIVATE_KEY",
+          "      clientEmail: FB_CLIENT_EMAIL",
+        ].join("\n") + "\n",
+      );
+      expect(parseManifest(deployDir).services).toEqual([
+        {
+          provider: "firebase",
+          credential: "split",
+          variables: {
+            privateKey: "FB_PRIVATE_KEY",
+            clientEmail: "FB_CLIENT_EMAIL",
+          },
+        },
+      ]);
+    });
+
     it("parses top-level variables with their source discriminant", () => {
       expect(parseManifest(deployDir).variables).toEqual([
         {

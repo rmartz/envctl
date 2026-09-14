@@ -14,6 +14,11 @@ import {
   rotateFirebase as rotateFirebaseKeys,
 } from "./firebase";
 import {
+  firebasePresenceKeys,
+  resolveFirebaseCredential,
+  type FirebaseCredentialSpec,
+} from "./firebase-credential";
+import {
   initSentry,
   invalidateSentryKey,
   rotateSentry as rotateSentryKey,
@@ -42,6 +47,12 @@ export interface RotationOptions {
    * Ignored for `init` flows, which scope via {@link RotationOptions.init}.
    */
   provider?: "firebase" | "sentry";
+  /**
+   * The resolved Firebase credential contract (shape + var names) from the
+   * manifest (#97/#98). Defaults to the provider default (split + default names)
+   * when unset, so callers without a manifest keep today's behavior.
+   */
+  firebaseCredential?: FirebaseCredentialSpec;
 }
 
 // ─── Main orchestration ───────────────────────────────────────────────────────
@@ -57,6 +68,9 @@ export async function run(opts: RotationOptions): Promise<void> {
 
   const client = new VercelClient(token, project.projectId, project.teamId);
 
+  const firebaseSpec = opts.firebaseCredential ?? resolveFirebaseCredential();
+  const firebaseKeys = firebasePresenceKeys(firebaseSpec);
+
   const allEnvs = await client.listEnvVars();
   // Scope key-existence checks to the specific Vercel target so that
   // successive per-env --init calls (e.g. preview then production) don't
@@ -67,9 +81,7 @@ export async function run(opts: RotationOptions): Promise<void> {
       : allEnvs.envs.filter((e) => e.target.includes(opts.targetEnv));
   const envKeys = scopedEnvs.map((e) => e.key);
 
-  const hasFirebase = envKeys.some((k) =>
-    ["FIREBASE_SERVICE_ACCOUNT", "FIREBASE_PRIVATE_KEY"].includes(k),
-  );
+  const hasFirebase = envKeys.some((k) => firebaseKeys.includes(k));
   const hasSentry = envKeys.some((k) =>
     ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"].includes(k),
   );
@@ -139,6 +151,7 @@ export async function run(opts: RotationOptions): Promise<void> {
           tempDir,
           opts.firebaseSaEmail,
           opts.gcpProject,
+          firebaseSpec,
         );
       }
       if (opts.init === "all" || opts.init === "sentry") {
@@ -161,6 +174,7 @@ export async function run(opts: RotationOptions): Promise<void> {
           opts.targetEnv,
           client,
           tempDir,
+          firebaseSpec,
         ));
       }
       if (rotateSentry) {

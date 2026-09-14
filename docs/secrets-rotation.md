@@ -38,13 +38,13 @@ it rotates every provider present in the project.
 The two modes share one engine ([`rotation.ts`](../src/lib/rotation.ts) `run`)
 but differ in how they decide what to act on and what they do with the old key:
 
-|                       | **rotate**                                                  | **init**                                                                                |
-| --------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Detects services from | keys **already in** the Vercel project                      | public vars in the **deployment config**                                                |
-| Firebase signal       | `FIREBASE_SERVICE_ACCOUNT` / `FIREBASE_PRIVATE_KEY` present | `FIREBASE_PROJECT_ID` / `FIREBASE_SA_EMAIL` / `NEXT_PUBLIC_FIREBASE_PROJECT_ID` present |
-| Sentry signal         | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` present             | `SENTRY_ORG` / `SENTRY_PROJECT` present                                                 |
-| Precondition          | the secret **exists** (else nothing to rotate)              | the secret does **not** exist (else error — use rotate)                                 |
-| Old key               | invalidated after redeploy                                  | none to invalidate                                                                      |
+|                       | **rotate**                                                                       | **init**                                                                                |
+| --------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Detects services from | keys **already in** the Vercel project                                           | public vars in the **deployment config**                                                |
+| Firebase signal       | the resolved credential vars present ([contract](#firebase-credential-contract)) | `FIREBASE_PROJECT_ID` / `FIREBASE_SA_EMAIL` / `NEXT_PUBLIC_FIREBASE_PROJECT_ID` present |
+| Sentry signal         | `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` present                                  | `SENTRY_ORG` / `SENTRY_PROJECT` present                                                 |
+| Precondition          | the secret **exists** (else nothing to rotate)                                   | the secret does **not** exist (else error — use rotate)                                 |
+| Old key               | invalidated after redeploy                                                       | none to invalidate                                                                      |
 
 `init`'s service auto-detection lives in
 [`secrets-plan.ts`](../src/lib/commands/secrets-plan.ts) (`resolveAutoInit`),
@@ -72,7 +72,10 @@ requested target:
    provider — nothing has been invalidated yet.
    - **Firebase** (`rotateFirebase` / `initFirebase`): `gcloud iam service-accounts keys create`
      mints a fresh JSON key for the configured service account, and it is pushed
-     as the `FIREBASE_SERVICE_ACCOUNT` Vercel env var for the target.
+     to Vercel under the project's declared
+     [credential contract](#firebase-credential-contract) — one
+     `FIREBASE_SERVICE_ACCOUNT` blob (`json`) or the discrete
+     projectId/clientEmail/privateKey/privateKeyId vars (`split`).
    - **Sentry** (`rotateSentry` / `initSentry`): a new client key is created via
      the Sentry API; the id of the previous key is captured for later deletion.
 2. **Redeploy and wait.** `triggerAndWaitRedeployments`
@@ -111,6 +114,49 @@ scoped:
 - **Firebase** is initialized **per Vercel target** (each gets its own key). The
   `development` target shares `staging`'s Firebase project but still receives
   its **own** key, sourced from the staging YAML.
+
+## Firebase credential contract
+
+Which env vars carry the Firebase admin credential is **declared by the project**
+in the [manifest](manifest.md), not assumed by envctl. A `firebase` service may
+declare a credential **shape** (#97) and a field→var-name **map** (#98):
+
+```yaml
+services:
+  - provider: firebase
+    # `split` is the default and intended shape — this line is only needed to
+    # opt into the deprecated `json` shape.
+    variables: # optional: override the exact var name per field
+      privateKey: FB_PRIVATE_KEY
+```
+
+[`resolveFirebaseCredential`](../src/lib/firebase-credential.ts) turns that
+declaration into a concrete contract — the shape plus the resolved name for every
+field (`projectId` / `clientEmail` / `privateKey` / `privateKeyId` for `split`;
+`serviceAccount` for `json`). `secrets.ts` reads it from the manifest and threads
+it through the engine; **detect, init, and rotate all key off these resolved
+names**, so envctl never provisions a var the app does not read. With **no
+manifest / no declaration**, the contract is the default: the `split` shape with
+the standard `FIREBASE_*` names.
+
+- **`split`** (default) — discrete vars, so an app that reads
+  `cert({ projectId, clientEmail, privateKey })` boots directly from a pulled
+  `.env.local` (`env pull` materializes whatever the declared shape wrote).
+  `privateKeyId` tracks the active key for the sweep.
+- **`json`** (**deprecated**, removal tracked in
+  [#102](https://github.com/rmartz/envctl/issues/102)) — one
+  `FIREBASE_SERVICE_ACCOUNT` var holding the SA-key JSON blob. Retained only so
+  envctl can read and migrate projects still on the old default; declaring it
+  emits a deprecation warning.
+
+### Migration
+
+When the declared shape differs from what is already in Vercel, `rotate`
+**migrates**: it mints the new key, writes the credential under the declared
+shape (including the split identity vars), then **removes the previous shape's
+now-stale vars** — so a `json`→`split` (or `split`→`json`) move leaves no orphan
+credential var behind. Each environment is read under **its own** current shape,
+so a partially-migrated project is never misread into sweeping a still-active key.
 
 ## Prerequisites
 

@@ -109,6 +109,29 @@ export class VercelClient {
     await this.request(`/v9/projects/${this.projectId}/env/${envId}`, "DELETE");
   }
 
+  /**
+   * Remove one Vercel target from an env-var record. If the record covers only
+   * that target, the record is deleted outright; otherwise it is patched to
+   * remove just that target so the credential is preserved for the remaining
+   * environments.
+   */
+  async removeEnvVarFromTarget(
+    envId: string,
+    existingTargets: string[],
+    vercelEnv: string,
+  ): Promise<void> {
+    const remaining = existingTargets.filter((t) => t !== vercelEnv);
+    if (remaining.length === 0) {
+      await this.deleteEnvVar(envId);
+    } else {
+      await this.request(
+        `/v9/projects/${this.projectId}/env/${envId}`,
+        "PATCH",
+        { target: remaining },
+      );
+    }
+  }
+
   findEnvVar(
     envs: VercelEnvVar[],
     key: string,

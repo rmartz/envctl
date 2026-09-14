@@ -57,19 +57,32 @@ function parseVariables(raw: unknown): VariableDecl[] {
   return out;
 }
 
+function parseStringMap(raw: unknown): Record<string, string> {
+  if (!isRecord(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "string") out[key] = value;
+  }
+  return out;
+}
+
 function parseServices(raw: unknown): ServiceDecl[] {
   if (!Array.isArray(raw)) return [];
   const out: ServiceDecl[] = [];
   for (const item of raw) {
     if (!isRecord(item) || typeof item.provider !== "string") continue;
-    out.push(
-      "environments" in item
-        ? {
-            provider: item.provider,
-            environments: asStringArray(item.environments),
-          }
-        : { provider: item.provider },
-    );
+    const service: {
+      provider: string;
+      environments?: string[];
+      credential?: "split" | "json";
+      variables?: Record<string, string>;
+    } = { provider: item.provider };
+    if ("environments" in item)
+      service.environments = asStringArray(item.environments);
+    if (item.credential === "split" || item.credential === "json")
+      service.credential = item.credential;
+    if ("variables" in item) service.variables = parseStringMap(item.variables);
+    out.push(service);
   }
   return out;
 }
