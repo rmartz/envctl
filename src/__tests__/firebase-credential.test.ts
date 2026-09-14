@@ -2,14 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   firebasePresenceKeys,
+  isDeprecatedCredential,
   patternVarNames,
   resolveFirebaseCredential,
 } from "../lib/firebase-credential";
 
 describe("resolveFirebaseCredential", () => {
-  it("defaults to json + default names when no service is declared", () => {
+  it("defaults to split + default names when no service is declared", () => {
     expect(resolveFirebaseCredential()).toEqual({
-      pattern: "json",
+      pattern: "split",
       names: {
         serviceAccount: "FIREBASE_SERVICE_ACCOUNT",
         projectId: "FIREBASE_PROJECT_ID",
@@ -20,11 +21,11 @@ describe("resolveFirebaseCredential", () => {
     });
   });
 
-  it("honors a declared split shape", () => {
+  it("still honors the deprecated json shape when explicitly declared", () => {
     expect(
-      resolveFirebaseCredential({ provider: "firebase", credential: "split" })
+      resolveFirebaseCredential({ provider: "firebase", credential: "json" })
         .pattern,
-    ).toBe("split");
+    ).toBe("json");
   });
 
   it("overrides only the named fields, defaulting the rest", () => {
@@ -36,6 +37,21 @@ describe("resolveFirebaseCredential", () => {
     expect(spec.names.privateKey).toBe("FB_PK");
     expect(spec.names.projectId).toBe("FB_PID");
     expect(spec.names.clientEmail).toBe("FIREBASE_CLIENT_EMAIL");
+  });
+});
+
+describe("isDeprecatedCredential", () => {
+  it("flags an explicit json declaration", () => {
+    expect(
+      isDeprecatedCredential({ provider: "firebase", credential: "json" }),
+    ).toBe(true);
+  });
+
+  it("does not flag the default or a split declaration", () => {
+    expect(isDeprecatedCredential()).toBe(false);
+    expect(
+      isDeprecatedCredential({ provider: "firebase", credential: "split" }),
+    ).toBe(false);
   });
 });
 

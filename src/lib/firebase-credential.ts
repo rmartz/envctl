@@ -13,8 +13,15 @@ export type FirebaseField =
   | "privateKey"
   | "privateKeyId";
 
-/** How many vars carry the credential in Vercel. */
+/**
+ * How many vars carry the credential in Vercel. `split` is the intended,
+ * default shape; `json` is **deprecated** — retained only to read and migrate
+ * projects still provisioned the old way, and slated for removal (#102).
+ */
 export type FirebasePatternKind = "json" | "split";
+
+/** The default credential shape when a project declares none. */
+export const DEFAULT_CREDENTIAL_PATTERN: FirebasePatternKind = "split";
 
 /** The default var name for each field — the back-compat naming envctl assumed. */
 export const DEFAULT_FIREBASE_VAR_NAMES: Record<FirebaseField, string> = {
@@ -43,19 +50,29 @@ export interface FirebaseCredentialSpec {
 
 /**
  * Resolve a `firebase` service declaration into a concrete credential contract.
- * A missing declaration (or missing fields) falls back to the provider default:
- * the `json` shape with the hardcoded default names, so existing projects are
- * unchanged.
+ * A missing declaration (or missing fields) falls back to the default: the
+ * `split` shape with the default names. Declaring `credential: json` opts into
+ * the deprecated shape (see {@link isDeprecatedCredential}).
  */
 export function resolveFirebaseCredential(
   service?: ServiceDecl,
 ): FirebaseCredentialSpec {
-  const pattern: FirebasePatternKind = service?.credential ?? "json";
+  const pattern: FirebasePatternKind =
+    service?.credential ?? DEFAULT_CREDENTIAL_PATTERN;
   const overrides = service?.variables ?? {};
   const names = {} as Record<FirebaseField, string>;
   for (const field of ALL_FIELDS)
     names[field] = overrides[field] ?? DEFAULT_FIREBASE_VAR_NAMES[field];
   return { pattern, names };
+}
+
+/**
+ * Whether a service explicitly opts into the deprecated `json` credential shape
+ * — worth a deprecation warning at the command boundary. Slated for removal in
+ * #102.
+ */
+export function isDeprecatedCredential(service?: ServiceDecl): boolean {
+  return service?.credential === "json";
 }
 
 const unique = (values: string[]): string[] => [...new Set(values)];

@@ -24,9 +24,10 @@ export interface ServiceDecl {
   readonly environments?: readonly string[];
   /**
    * Firebase credential shape — how many vars carry the admin credential (#97).
-   * `json` = one `FIREBASE_SERVICE_ACCOUNT`; `split` = the discrete
-   * projectId/clientEmail/privateKey(/privateKeyId) vars. Undefined ⇒ the
-   * provider default (`json`, for back-compat). Ignored by other providers.
+   * `split` (the default) = the discrete projectId/clientEmail/privateKey/
+   * privateKeyId vars; `json` = one `FIREBASE_SERVICE_ACCOUNT` blob and is
+   * **deprecated**, retained only to migrate existing projects (removal: #102).
+   * Ignored by other providers.
    */
   readonly credential?: "split" | "json";
   /**

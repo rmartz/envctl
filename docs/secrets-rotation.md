@@ -124,24 +124,30 @@ declare a credential **shape** (#97) and a field→var-name **map** (#98):
 ```yaml
 services:
   - provider: firebase
-    credential: split # split | json  (default: json, for back-compat)
+    # `split` is the default and intended shape — this line is only needed to
+    # opt into the deprecated `json` shape.
     variables: # optional: override the exact var name per field
       privateKey: FB_PRIVATE_KEY
 ```
 
 [`resolveFirebaseCredential`](../src/lib/firebase-credential.ts) turns that
 declaration into a concrete contract — the shape plus the resolved name for every
-field (`serviceAccount` for `json`; `projectId` / `clientEmail` / `privateKey` /
-`privateKeyId` for `split`). `secrets.ts` reads it from the manifest and threads
+field (`projectId` / `clientEmail` / `privateKey` / `privateKeyId` for `split`;
+`serviceAccount` for `json`). `secrets.ts` reads it from the manifest and threads
 it through the engine; **detect, init, and rotate all key off these resolved
 names**, so envctl never provisions a var the app does not read. With **no
-manifest / no declaration**, the contract is the back-compat default: the `json`
-shape with the historical `FIREBASE_*` names, so existing projects are unchanged.
+manifest / no declaration**, the contract is the default: the `split` shape with
+the standard `FIREBASE_*` names.
 
-- **`json`** — one `FIREBASE_SERVICE_ACCOUNT` var holding the SA-key JSON blob.
-- **`split`** — discrete vars, so an app that reads `cert({ projectId, clientEmail, privateKey })`
-  boots directly from a pulled `.env.local` (`env pull` materializes whatever the
-  declared shape wrote). `privateKeyId` tracks the active key for the sweep.
+- **`split`** (default) — discrete vars, so an app that reads
+  `cert({ projectId, clientEmail, privateKey })` boots directly from a pulled
+  `.env.local` (`env pull` materializes whatever the declared shape wrote).
+  `privateKeyId` tracks the active key for the sweep.
+- **`json`** (**deprecated**, removal tracked in
+  [#102](https://github.com/rmartz/envctl/issues/102)) — one
+  `FIREBASE_SERVICE_ACCOUNT` var holding the SA-key JSON blob. Retained only so
+  envctl can read and migrate projects still on the old default; declaring it
+  emits a deprecation warning.
 
 ### Migration
 

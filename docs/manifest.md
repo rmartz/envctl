@@ -31,7 +31,7 @@ deployments: # provider-typed sinks; identity is still discovered per-provider
 
 services: # provider-typed sources of secret vars + rotation
   - provider: firebase
-    credential: split # firebase credential shape: split | json (#97)
+    # credential shape defaults to `split` (#97); `json` is deprecated (#102)
     variables: # map each field → the exact var name the app reads (#98)
       privateKey: FB_PRIVATE_KEY
   - provider: action-tracking

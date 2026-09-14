@@ -2,6 +2,7 @@ import { resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
 import { refreshPreviewDeployments } from "../deployments";
 import {
+  isDeprecatedCredential,
   resolveFirebaseCredential,
   type FirebaseCredentialSpec,
 } from "../firebase-credential";
@@ -11,7 +12,7 @@ import {
   parseDeploymentEnv,
   vercelTarget,
 } from "../environments";
-import { err, log } from "../logger";
+import { err, log, warn } from "../logger";
 import { detectProject } from "../project";
 import { run as rotateKeysRun } from "../rotation";
 import { VercelClient } from "../vercel-api";
@@ -148,10 +149,14 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
 
   // Resolve the Firebase credential contract from the manifest (shape + var
   // names). With no manifest / no firebase service declared, this is the
-  // back-compat default (json + default names).
+  // default (split + default names).
   const firebaseService = parseManifest(opts.deploymentDir).services.find(
     (s) => s.provider === "firebase",
   );
+  if (isDeprecatedCredential(firebaseService))
+    warn(
+      "Firebase `credential: json` is deprecated — prefer the default `split` shape (removal tracked in #102). `secrets rotate` will migrate an existing json project to split.",
+    );
   const firebaseCredential = resolveFirebaseCredential(firebaseService);
 
   log(

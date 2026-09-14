@@ -104,7 +104,7 @@ describe("firebase credential provisioning", () => {
   });
 
   describe("initFirebase", () => {
-    it("writes only FIREBASE_SERVICE_ACCOUNT under the default json shape", async () => {
+    it("writes the four split vars by default (no shape declared)", async () => {
       const fake = new FakeVercel();
       await initFirebase(
         "production",
@@ -113,26 +113,6 @@ describe("firebase credential provisioning", () => {
         "sa@proj.iam",
         "proj-x",
         resolveFirebaseCredential(),
-      );
-      expect(keysFor(fake, "production")).toEqual(["FIREBASE_SERVICE_ACCOUNT"]);
-      expect(
-        valueFor(fake, "FIREBASE_SERVICE_ACCOUNT", "production"),
-      ).toContain("new-key-id");
-    });
-
-    it("writes the four split vars under a declared split shape", async () => {
-      const fake = new FakeVercel();
-      const spec = resolveFirebaseCredential({
-        provider: "firebase",
-        credential: "split",
-      });
-      await initFirebase(
-        "production",
-        asClient(fake),
-        tmp,
-        "sa@proj.iam",
-        "proj-x",
-        spec,
       );
       expect(keysFor(fake, "production")).toEqual([
         "FIREBASE_CLIENT_EMAIL",
@@ -149,6 +129,26 @@ describe("firebase credential provisioning", () => {
       expect(valueFor(fake, "FIREBASE_PRIVATE_KEY", "production")).toContain(
         "BEGIN",
       );
+    });
+
+    it("writes only FIREBASE_SERVICE_ACCOUNT under the deprecated json shape", async () => {
+      const fake = new FakeVercel();
+      const spec = resolveFirebaseCredential({
+        provider: "firebase",
+        credential: "json",
+      });
+      await initFirebase(
+        "production",
+        asClient(fake),
+        tmp,
+        "sa@proj.iam",
+        "proj-x",
+        spec,
+      );
+      expect(keysFor(fake, "production")).toEqual(["FIREBASE_SERVICE_ACCOUNT"]);
+      expect(
+        valueFor(fake, "FIREBASE_SERVICE_ACCOUNT", "production"),
+      ).toContain("new-key-id");
     });
 
     it("uses the declared custom var names (#98)", async () => {
