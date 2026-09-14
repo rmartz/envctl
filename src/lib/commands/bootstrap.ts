@@ -2,7 +2,13 @@ import { resolveSentryToken, resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
 import { triggerAndWaitRedeployments } from "../deployments";
 import { listActiveEnvs } from "../environments";
+import { resolveEnvTarget } from "../targets";
+import {
+  firebasePresenceKeys,
+  resolveFirebaseCredential,
+} from "../firebase-credential";
 import { err, log } from "../logger";
+import { parseManifest } from "../manifest";
 import { detectProject } from "../project";
 import { commandExists } from "../subprocess";
 import { VercelClient } from "../vercel-api";
@@ -51,9 +57,12 @@ const ALL_VERCEL_TARGETS = ["production", "preview", "development"] as const;
 // Reports which providers already have their secret present in the Vercel
 // project, scoped to the requested target(s) so a partial prior run (e.g. key
 // exists for production only) does not incorrectly skip other environments.
+// Uses the manifest's resolved Firebase credential names so a project with
+// custom var names (e.g. `privateKey: FB_PK`) is correctly detected.
 async function detectExistingSecrets(
   client: VercelClient,
   targetEnv: string,
+  deploymentDir: string,
 ): Promise<Configured> {
   const { envs } = await client.listEnvVars();
   const isPresent = (key: string): boolean => {
@@ -64,10 +73,12 @@ async function detectExistingSecrets(
     }
     return envs.some((e) => e.key === key && e.target.includes(targetEnv));
   };
+  const firebaseService = parseManifest(deploymentDir).services.find(
+    (s) => s.provider === "firebase",
+  );
+  const firebaseSpec = resolveFirebaseCredential(firebaseService);
   return {
-    firebase: ["FIREBASE_SERVICE_ACCOUNT", "FIREBASE_PRIVATE_KEY"].some(
-      isPresent,
-    ),
+    firebase: firebasePresenceKeys(firebaseSpec).some(isPresent),
     sentry: ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"].some(isPresent),
   };
 }
@@ -78,6 +89,7 @@ async function bootstrapSecrets(
   opts: BootstrapOptions,
   token: string,
   configured: Configured,
+  resolvedTarget: string,
 ): Promise<void> {
   const services = (["firebase", "sentry"] as const).filter(
     (s) => configured[s],
@@ -95,7 +107,11 @@ async function bootstrapSecrets(
 
   const project = detectProject(opts.workingDir);
   const client = new VercelClient(token, project.projectId, project.teamId);
-  const present = await detectExistingSecrets(client, opts.targetEnv);
+  const present = await detectExistingSecrets(
+    client,
+    resolvedTarget,
+    opts.deploymentDir,
+  );
 
   for (const service of services) {
     if (present[service]) {
@@ -106,7 +122,7 @@ async function bootstrapSecrets(
     }
     log(`  ${service}: initializing...`);
     await runSecrets({
-      targetEnv: opts.targetEnv,
+      targetEnv: resolvedTarget,
       workingDir: opts.workingDir,
       deploymentDir: opts.deploymentDir,
       invalidateKeys: true,
@@ -123,6 +139,7 @@ async function bootstrapSecrets(
 async function bootstrapVerify(
   opts: BootstrapOptions,
   token: string,
+  resolvedTarget: string,
 ): Promise<void> {
   if (opts.dryRun) {
     log("  Would trigger redeployments to verify pushed configuration.");
@@ -130,7 +147,7 @@ async function bootstrapVerify(
   }
   const project = detectProject(opts.workingDir);
   const client = new VercelClient(token, project.projectId, project.teamId);
-  await triggerAndWaitRedeployments(opts.targetEnv, client);
+  await triggerAndWaitRedeployments(resolvedTarget, client);
 }
 
 // Phase 3: materialize the local dotenv file from the development environment.
@@ -166,8 +183,15 @@ export async function runBootstrap(opts: BootstrapOptions): Promise<void> {
     err(
       `No active environments found in ${opts.deploymentDir}/environments.yml`,
     );
-  const devSource = findDevSource(activeEnvs);
+  const devSource = findDevSource(opts.deploymentDir, activeEnvs);
   const envList = resolveEnvList(activeEnvs, opts.targetEnv, devSource);
+  // Resolve the env name to its Vercel provider target for Vercel API calls.
+  // detectConfiguredServices scans env YAML files and needs the env name, not
+  // the provider target, so it still receives opts.targetEnv.
+  const resolvedTarget =
+    opts.targetEnv === "all"
+      ? "all"
+      : resolveEnvTarget(opts.deploymentDir, opts.targetEnv);
   const configured = detectConfiguredServices(
     opts.deploymentDir,
     opts.targetEnv,
@@ -192,13 +216,13 @@ export async function runBootstrap(opts: BootstrapOptions): Promise<void> {
   });
 
   log("Phase 2/4 — provider secrets");
-  await bootstrapSecrets(opts, token, configured);
+  await bootstrapSecrets(opts, token, configured, resolvedTarget);
 
   log("Phase 3/4 — local environment file");
   bootstrapPull(opts);
 
   log("Phase 4/4 — post-push verification");
-  await bootstrapVerify(opts, token);
+  await bootstrapVerify(opts, token, resolvedTarget);
 
   log(opts.dryRun ? "Dry run complete." : "Bootstrap complete.");
 }

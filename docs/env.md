@@ -43,29 +43,41 @@ Parsing lives in [`environments.ts`](../src/lib/environments.ts)
 (`listActiveEnvs`, `parseDeploymentEnv`). A blank file degrades to an empty
 result rather than throwing.
 
-> **Foundation in progress.** A richer, single-file
+> **Migration in progress.** A richer, single-file
 > [deployment manifest](manifest.md) (`manifest.yml`) — declaring deployments,
-> services, and variable sources/scopes in one place — has landed as a typed
-> schema + parser. It is not yet wired into any command; the flat model
-> described here is still what `config push`, `env pull`, and the rotation
-> engine run on today.
+> services, and variable sources/scopes in one place — is being wired in
+> incrementally. The **env → target mapping is now sourced from the manifest**
+> (below); the active-environment _list_ still lives in `environments.yml`, and
+> `config push` / `env pull` still read per-environment vars from the flat
+> `deployment/{env}.yml` files.
 
 ### Name → target mapping
 
-Each deploy-environment name maps to a Vercel infrastructure target by
-convention (`vercelTarget`): `production → production`, `staging`/`preview →
-preview`, `development → development`, anything else passed through as-is.
+An environment's provider infrastructure target is resolved from the manifest's
+authoritative `deployments[].targets` map — the `vercel` deployment's
+`{ envName: target }` — by
+[`resolveEnvTarget`](../src/lib/targets.ts) (#87). The **name convention**
+(`vercelTarget`: `production → production`, `staging`/`preview → preview`,
+`development → development`, else pass-through) is only the **fallback**, used
+when the manifest declares no target for that env — a legacy config with no
+`targets:` block, or an env omitted from the map. So existing repos resolve
+exactly as before, while a project can now map a non-conventionally-named env
+(e.g. `demo: preview`) explicitly.
 
-The **`development`** target is implicit — it never appears in
-`environments.yml` and has no file of its own. It mirrors the **staging/preview
-source**: the first active environment whose target is `preview` (`findDevSource`
-in [env-plan.ts](../src/lib/commands/env-plan.ts)). config-push populates it from
+The **`development`** target is implicit — it never appears in the active list
+and has no file of its own. It mirrors the **staging/preview source**: the first
+active environment whose _resolved_ target is `preview` (`findDevSource` in
+[env-plan.ts](../src/lib/commands/env-plan.ts)). config-push populates it from
 that source's public vars; the rotation engine gives it its own Firebase key
 against the shared staging project.
 
-Because config files are reserialized with `js-yaml` (`load → mutate → dump`),
-comments and key ordering in a hand-edited file are **not** preserved across an
-`env add`.
+> **Migration note.** The dev source is now the first env whose target resolves
+> to `preview` **through the manifest**, not through the hardcoded name
+> convention. A config that relied on the implicit "an env literally named
+> `staging`/`preview` is the dev source" behavior is unaffected (the convention
+> is still the fallback). But if you declare a `preview` target for a
+> differently-named env, that env becomes the dev source — declare targets
+> deliberately when more than one env resolves to `preview`.
 
 ## Defining environments
 
@@ -79,12 +91,15 @@ envctl env list                               # list environments and their targ
   `deployment/environments.yml` (seeded with `production`) and a sample env
   file. It is a no-op with a warning if config already exists — it never
   clobbers hand-edited files.
-- **`env add`** appends the name to the active list and scaffolds its file.
-  Idempotent: an already-active name is a no-op. `--target` declares the intended
-  mapping and is validated against the allowed set (`production|preview|development`);
-  if it disagrees with the name convention, `env add` warns (config push maps by
-  name). The target is not persisted — `environments.yml` stores only the env name.
-- **`env list`** prints each active environment and its resolved Vercel target.
+- **`env add`** appends the name to the active list (`environments.yml`) and
+  scaffolds its file. Idempotent: an already-active name is a no-op. `--target`
+  is validated against the allowed set (`production|preview|development`) and
+  **persisted** into the manifest's `deployments[].targets` map (#87) — creating
+  `manifest.yml` with a `vercel` deployment block if absent — so the mapping is
+  authoritative rather than validated-then-dropped. The write preserves comments
+  and other keys via the `yaml` Document API.
+- **`env list`** prints each active environment and its resolved provider target
+  (manifest target, else the name convention).
 
 ## Pulling config for local testing
 

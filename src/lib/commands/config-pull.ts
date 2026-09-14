@@ -2,12 +2,13 @@ import * as fs from "fs";
 import * as path from "path";
 
 import type { CommandContext } from "../cli/registry";
-import { vercelTarget } from "../environments";
 import { err, log, warn } from "../logger";
 import { commandExists, run, runStatus } from "../subprocess";
+import { resolveEnvTarget } from "../targets";
+import { deploymentDir } from "./deployment-config";
 
 interface PullOptions {
-  // Deployment environment name (mapped to a Vercel target via vercelTarget).
+  // Deployment environment name (mapped to a Vercel target via the manifest).
   env: string;
   // Absolute path to the dotenv file to write.
   out: string;
@@ -111,7 +112,7 @@ export function runConfigPull(ctx: CommandContext, args: string[]): void {
     }
   }
 
-  const target = vercelTarget(opts.env);
+  const target = resolveEnvTarget(deploymentDir(ctx.workingDir), opts.env);
   // Pre-create the target at 0600 before the CLI writes secrets into it,
   // closing the window where the CLI creates the file with a permissive umask.
   // chmodSync handles existing files, since writeFileSync's mode applies only

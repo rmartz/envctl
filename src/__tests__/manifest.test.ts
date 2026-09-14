@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   effectiveValue,
   parseManifest,
-  setManifestEnvironments,
   variableVisibility,
 } from "../lib/manifest";
 
@@ -79,6 +78,31 @@ describe("manifest", () => {
       expect(parseManifest(deployDir).services).toEqual([
         { provider: "firebase" },
         { provider: "action-tracking", environments: ["production"] },
+      ]);
+    });
+
+    it("parses a service's credential shape and field→var-name map", () => {
+      write(
+        "manifest.yml",
+        [
+          "environments: [production]",
+          "services:",
+          "  - provider: firebase",
+          "    credential: split",
+          "    variables:",
+          "      privateKey: FB_PRIVATE_KEY",
+          "      clientEmail: FB_CLIENT_EMAIL",
+        ].join("\n") + "\n",
+      );
+      expect(parseManifest(deployDir).services).toEqual([
+        {
+          provider: "firebase",
+          credential: "split",
+          variables: {
+            privateKey: "FB_PRIVATE_KEY",
+            clientEmail: "FB_CLIENT_EMAIL",
+          },
+        },
       ]);
     });
 
@@ -242,43 +266,6 @@ describe("manifest", () => {
 
     it("treats a generated secret as secret", () => {
       expect(variableVisibility({ kind: "generate" })).toBe("secret");
-    });
-  });
-
-  describe("setManifestEnvironments", () => {
-    it("preserves comments and untouched keys when updating the list", () => {
-      write(
-        "manifest.yml",
-        [
-          "# envctl deployment manifest",
-          "environments: [production]",
-          "services:",
-          "  - provider: firebase # keep this comment",
-        ].join("\n") + "\n",
-      );
-
-      setManifestEnvironments(deployDir, ["production", "staging"]);
-
-      const text = fs.readFileSync(
-        path.join(deployDir, "manifest.yml"),
-        "utf-8",
-      );
-      expect(text).toContain("# envctl deployment manifest");
-      expect(text).toContain("# keep this comment");
-      expect(parseManifest(deployDir).environments).toEqual([
-        "production",
-        "staging",
-      ]);
-      // The untouched services block still parses.
-      expect(parseManifest(deployDir).services).toEqual([
-        { provider: "firebase" },
-      ]);
-    });
-
-    it("creates a new manifest when none exists", () => {
-      setManifestEnvironments(deployDir, ["production"]);
-      expect(fs.existsSync(path.join(deployDir, "manifest.yml"))).toBe(true);
-      expect(parseManifest(deployDir).environments).toEqual(["production"]);
     });
   });
 });

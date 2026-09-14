@@ -2,13 +2,16 @@ import { resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
 import { refreshPreviewDeployments } from "../deployments";
 import {
-  listActiveEnvs,
-  parseDeploymentEnv,
-  vercelTarget,
-} from "../environments";
-import { err, log } from "../logger";
+  isDeprecatedCredential,
+  resolveFirebaseCredential,
+  type FirebaseCredentialSpec,
+} from "../firebase-credential";
+import { parseManifest } from "../manifest";
+import { listActiveEnvs, parseDeploymentEnv } from "../environments";
+import { err, log, warn } from "../logger";
 import { detectProject } from "../project";
 import { run as rotateKeysRun } from "../rotation";
+import { envTargetResolver } from "../targets";
 import { VercelClient } from "../vercel-api";
 import {
   assertDeploymentPrereqs,
@@ -34,8 +37,10 @@ async function dispatchRotation(
   init: "all" | "firebase" | "sentry" | undefined,
   envList: string[],
   devSource: string | undefined,
+  firebaseCredential: FirebaseCredentialSpec,
 ): Promise<void> {
   const { deploymentDir, invalidateKeys, workingDir, targetEnv } = opts;
+  const resolveTarget = envTargetResolver(deploymentDir);
 
   if (init && targetEnv === "all") {
     if (init === "sentry" || init === "all") {
@@ -53,7 +58,7 @@ async function dispatchRotation(
     if (init === "firebase" || init === "all") {
       const seenTargets = new Set<string>();
       for (const envName of envList) {
-        const target = vercelTarget(envName);
+        const target = resolveTarget(envName);
         if (seenTargets.has(target)) continue;
         seenTargets.add(target);
         const vars = parseDeploymentEnv(deploymentDir, envName);
@@ -64,6 +69,7 @@ async function dispatchRotation(
           init: "firebase",
           firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
           gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
+          firebaseCredential,
         });
       }
       // development shares staging's Firebase project but gets its own key.
@@ -76,6 +82,7 @@ async function dispatchRotation(
           init: "firebase",
           firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
           gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
+          firebaseCredential,
         });
       }
     }
@@ -90,7 +97,7 @@ async function dispatchRotation(
         : targetEnv;
   const vars = source ? parseDeploymentEnv(deploymentDir, source) : {};
   await rotateKeysRun({
-    targetEnv: targetEnv === "all" ? "all" : vercelTarget(targetEnv),
+    targetEnv: targetEnv === "all" ? "all" : resolveTarget(targetEnv),
     invalidateKeys,
     workingDir,
     init,
@@ -98,6 +105,7 @@ async function dispatchRotation(
     provider: init ? undefined : opts.provider,
     firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
     gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
+    firebaseCredential,
     sentryOrg: vars.SENTRY_ORG || undefined,
     sentryProject: vars.SENTRY_PROJECT || undefined,
   });
@@ -117,7 +125,7 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
       `No active environments found in ${opts.deploymentDir}/environments.yml`,
     );
 
-  const devSource = findDevSource(activeEnvs);
+  const devSource = findDevSource(opts.deploymentDir, activeEnvs);
   const envList = resolveEnvList(activeEnvs, opts.targetEnv, devSource);
 
   let init = opts.init;
@@ -137,10 +145,22 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
       devSource,
     );
 
+  // Resolve the Firebase credential contract from the manifest (shape + var
+  // names). With no manifest / no firebase service declared, this is the
+  // default (split + default names).
+  const firebaseService = parseManifest(opts.deploymentDir).services.find(
+    (s) => s.provider === "firebase",
+  );
+  if (isDeprecatedCredential(firebaseService))
+    warn(
+      "Firebase `credential: json` is deprecated — prefer the default `split` shape (removal tracked in #102). `secrets rotate` will migrate an existing json project to split.",
+    );
+  const firebaseCredential = resolveFirebaseCredential(firebaseService);
+
   log(
     `Target: ${opts.targetEnv} | ${init ? `Initializing ${init}` : `Rotating (invalidate old: ${opts.invalidateKeys})`}`,
   );
-  await dispatchRotation(opts, init, envList, devSource);
+  await dispatchRotation(opts, init, envList, devSource, firebaseCredential);
 
   if (opts.refreshPreviews) {
     const project = detectProject(opts.workingDir);

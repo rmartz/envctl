@@ -10,4 +10,4 @@ export type {
 export { variableVisibility } from "./types";
 export { MANIFEST_FILENAME, manifestFilePath, parseManifest } from "./parse";
 export { effectiveValue } from "./resolve";
-export { setManifestEnvironments } from "./write";
+export { setManifestEnvironments, setManifestTarget } from "./write";

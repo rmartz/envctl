@@ -1,8 +1,10 @@
 import * as fs from "fs";
 
 import type { CommandContext } from "../cli/registry";
-import { listActiveEnvs, vercelTarget } from "../environments";
+import { listActiveEnvs } from "../environments";
+import { setManifestTarget } from "../manifest";
 import { err, log, warn } from "../logger";
+import { envTargetResolver } from "../targets";
 import {
   deploymentDir,
   environmentsFile,
@@ -17,9 +19,9 @@ import {
 const ENV_ADD_USAGE = `Usage: envctl env add <name> --target <${VALID_TARGETS.join("|")}>
 
 Define an environment: append <name> to environments.yml's active list and
-create deployment/<name>.yml. The provider target follows the name convention
-(see 'envctl env list'); --target declares the intended mapping and is validated
-against the allowed set.`;
+create deployment/<name>.yml. --target is required and sets the authoritative
+Vercel deployment target for this env (written to manifest.yml), used by config
+push, env pull, and secrets rotation.`;
 
 interface AddArgs {
   name: string;
@@ -72,27 +74,24 @@ export function runEnvAdd(ctx: CommandContext, args: string[]): void {
   const { name, target } = parseAddArgs(args);
   requireConfig(ctx);
 
-  const active = listActiveEnvs(deploymentDir(ctx.workingDir));
+  const dir = deploymentDir(ctx.workingDir);
+  const active = listActiveEnvs(dir);
   if (active.includes(name)) {
     warn(`'${name}' is already an active environment — config unchanged.`);
     return;
-  }
-
-  const conventional = vercelTarget(name);
-  if (conventional !== target) {
-    warn(
-      `'${name}' maps to target '${conventional}' by name convention; ` +
-        `recorded --target '${target}' (config push maps by name).`,
-    );
   }
 
   writeActiveEnvs(ctx.workingDir, [...active, name]);
   if (!fs.existsSync(envFile(ctx.workingDir, name))) {
     writeEnvFile(ctx.workingDir, name, {});
   }
+  // Persist the explicit env→target mapping into the manifest (#87), where it is
+  // now authoritative for config push / secrets — rather than validated and
+  // dropped as before.
+  setManifestTarget(dir, name, target);
 
   log(
-    `Added '${name}'. Edit ${envFile(ctx.workingDir, name)} to set its vars.`,
+    `Added '${name}' → ${target}. Edit ${envFile(ctx.workingDir, name)} to set its vars.`,
   );
 }
 
@@ -100,14 +99,16 @@ export function runEnvAdd(ctx: CommandContext, args: string[]): void {
 export function runEnvList(ctx: CommandContext): void {
   requireConfig(ctx);
 
-  const active = listActiveEnvs(deploymentDir(ctx.workingDir));
+  const dir = deploymentDir(ctx.workingDir);
+  const active = listActiveEnvs(dir);
   if (active.length === 0) {
     log("No environments defined.");
     return;
   }
 
+  const resolveTarget = envTargetResolver(dir);
   log("Environments:");
   for (const name of active) {
-    log(`  ${name} → ${vercelTarget(name)}`);
+    log(`  ${name} → ${resolveTarget(name)}`);
   }
 }
