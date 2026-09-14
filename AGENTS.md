@@ -21,7 +21,6 @@ pnpm run test:ts            # Run the Vitest suite
 pnpm run check:file-length  # File-length ratchet
 pnpm run check:package-pins # Verify all package.json pins are full major.minor.patch
 pnpm run check:action-pins  # Verify GitHub Actions are SHA-pinned with version comments
-pnpm run check:release-age  # Fail lockfile bumps younger than the cooldown window
 pnpm run check:agents-md    # Verify every AGENTS.md pairs with a bare `@AGENTS.md` CLAUDE.md
 pnpm run check:docs         # Verify docs/ OKF frontmatter and index.md navigability
 ```
