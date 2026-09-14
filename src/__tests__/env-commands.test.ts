@@ -8,6 +8,7 @@ import { listActiveEnvs, parseDeploymentEnv } from "../lib/environments";
 import { FatalError } from "../lib/logger";
 import { runEnvAdd, runEnvList } from "../lib/commands/env";
 import { runInit } from "../lib/commands/init";
+import { resolveEnvTarget } from "../lib/targets";
 
 describe("init / env add / env list", () => {
   let workingDir: string;
@@ -61,6 +62,13 @@ describe("init / env add / env list", () => {
       expect(() => runEnvAdd(ctx(), ["qa", "--target", "bogus"])).toThrow(
         FatalError,
       );
+    });
+
+    it("persists --target into the manifest so it round-trips (#87)", () => {
+      runInit(ctx());
+      // "demo" maps to itself by name convention; the declared target must win.
+      runEnvAdd(ctx(), ["demo", "--target", "preview"]);
+      expect(resolveEnvTarget(deployDir, "demo")).toBe("preview");
     });
 
     it("is a no-op for an already-active environment", () => {

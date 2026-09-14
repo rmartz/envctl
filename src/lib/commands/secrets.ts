@@ -7,14 +7,11 @@ import {
   type FirebaseCredentialSpec,
 } from "../firebase-credential";
 import { parseManifest } from "../manifest";
-import {
-  listActiveEnvs,
-  parseDeploymentEnv,
-  vercelTarget,
-} from "../environments";
+import { listActiveEnvs, parseDeploymentEnv } from "../environments";
 import { err, log, warn } from "../logger";
 import { detectProject } from "../project";
 import { run as rotateKeysRun } from "../rotation";
+import { envTargetResolver } from "../targets";
 import { VercelClient } from "../vercel-api";
 import {
   assertDeploymentPrereqs,
@@ -43,6 +40,7 @@ async function dispatchRotation(
   firebaseCredential: FirebaseCredentialSpec,
 ): Promise<void> {
   const { deploymentDir, invalidateKeys, workingDir, targetEnv } = opts;
+  const resolveTarget = envTargetResolver(deploymentDir);
 
   if (init && targetEnv === "all") {
     if (init === "sentry" || init === "all") {
@@ -60,7 +58,7 @@ async function dispatchRotation(
     if (init === "firebase" || init === "all") {
       const seenTargets = new Set<string>();
       for (const envName of envList) {
-        const target = vercelTarget(envName);
+        const target = resolveTarget(envName);
         if (seenTargets.has(target)) continue;
         seenTargets.add(target);
         const vars = parseDeploymentEnv(deploymentDir, envName);
@@ -99,7 +97,7 @@ async function dispatchRotation(
         : targetEnv;
   const vars = source ? parseDeploymentEnv(deploymentDir, source) : {};
   await rotateKeysRun({
-    targetEnv: targetEnv === "all" ? "all" : vercelTarget(targetEnv),
+    targetEnv: targetEnv === "all" ? "all" : resolveTarget(targetEnv),
     invalidateKeys,
     workingDir,
     init,
@@ -127,7 +125,7 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
       `No active environments found in ${opts.deploymentDir}/environments.yml`,
     );
 
-  const devSource = findDevSource(activeEnvs);
+  const devSource = findDevSource(opts.deploymentDir, activeEnvs);
   const envList = resolveEnvList(activeEnvs, opts.targetEnv, devSource);
 
   let init = opts.init;

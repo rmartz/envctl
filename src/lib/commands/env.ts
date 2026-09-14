@@ -1,8 +1,10 @@
 import * as fs from "fs";
 
 import type { CommandContext } from "../cli/registry";
-import { listActiveEnvs, vercelTarget } from "../environments";
+import { listActiveEnvs } from "../environments";
+import { setManifestTarget } from "../manifest";
 import { err, log, warn } from "../logger";
+import { envTargetResolver } from "../targets";
 import {
   deploymentDir,
   environmentsFile,
@@ -72,27 +74,24 @@ export function runEnvAdd(ctx: CommandContext, args: string[]): void {
   const { name, target } = parseAddArgs(args);
   requireConfig(ctx);
 
-  const active = listActiveEnvs(deploymentDir(ctx.workingDir));
+  const dir = deploymentDir(ctx.workingDir);
+  const active = listActiveEnvs(dir);
   if (active.includes(name)) {
     warn(`'${name}' is already an active environment — config unchanged.`);
     return;
-  }
-
-  const conventional = vercelTarget(name);
-  if (conventional !== target) {
-    warn(
-      `'${name}' maps to target '${conventional}' by name convention; ` +
-        `recorded --target '${target}' (config push maps by name).`,
-    );
   }
 
   writeActiveEnvs(ctx.workingDir, [...active, name]);
   if (!fs.existsSync(envFile(ctx.workingDir, name))) {
     writeEnvFile(ctx.workingDir, name, {});
   }
+  // Persist the explicit env→target mapping into the manifest (#87), where it is
+  // now authoritative for config push / secrets — rather than validated and
+  // dropped as before.
+  setManifestTarget(dir, name, target);
 
   log(
-    `Added '${name}'. Edit ${envFile(ctx.workingDir, name)} to set its vars.`,
+    `Added '${name}' → ${target}. Edit ${envFile(ctx.workingDir, name)} to set its vars.`,
   );
 }
 
@@ -100,14 +99,16 @@ export function runEnvAdd(ctx: CommandContext, args: string[]): void {
 export function runEnvList(ctx: CommandContext): void {
   requireConfig(ctx);
 
-  const active = listActiveEnvs(deploymentDir(ctx.workingDir));
+  const dir = deploymentDir(ctx.workingDir);
+  const active = listActiveEnvs(dir);
   if (active.length === 0) {
     log("No environments defined.");
     return;
   }
 
+  const resolveTarget = envTargetResolver(dir);
   log("Environments:");
   for (const name of active) {
-    log(`  ${name} → ${vercelTarget(name)}`);
+    log(`  ${name} → ${resolveTarget(name)}`);
   }
 }

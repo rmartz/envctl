@@ -2,12 +2,14 @@ import * as fs from "fs";
 import * as path from "path";
 
 import type { CommandContext } from "../cli/registry";
-import { vercelTarget } from "../environments";
 import { err, log } from "../logger";
 import { commandExists, run } from "../subprocess";
+import { resolveEnvTarget } from "../targets";
+import { deploymentDir } from "./deployment-config";
 
 interface PullOptions {
-  // Deployment environment name (mapped to a Vercel target via vercelTarget).
+  // Deployment environment name (mapped to a provider target via the manifest
+  // targets map, falling back to the name convention — resolveEnvTarget).
   env: string;
   // Absolute path to the dotenv file to write.
   out: string;
@@ -68,7 +70,7 @@ export function runEnvPull(ctx: CommandContext, args: string[]): void {
     );
   }
 
-  const target = vercelTarget(opts.env);
+  const target = resolveEnvTarget(deploymentDir(ctx.workingDir), opts.env);
   log(`Pulling '${opts.env}' (${target}) into ${opts.out}...`);
   try {
     run(

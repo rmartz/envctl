@@ -177,7 +177,7 @@ export async function runBootstrap(opts: BootstrapOptions): Promise<void> {
     err(
       `No active environments found in ${opts.deploymentDir}/environments.yml`,
     );
-  const devSource = findDevSource(activeEnvs);
+  const devSource = findDevSource(opts.deploymentDir, activeEnvs);
   const envList = resolveEnvList(activeEnvs, opts.targetEnv, devSource);
   const configured = detectConfiguredServices(
     opts.deploymentDir,

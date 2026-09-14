@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 
-import { vercelTarget } from "../environments";
 import { err } from "../logger";
+import { envTargetResolver } from "../targets";
 
 // Environment-planning helpers shared by `config push` and `secrets` — the
 // logic that turns a requested --env value plus the active-environments list
@@ -25,11 +25,18 @@ export function assertDeploymentPrereqs(
   if (!fs.existsSync(envsFile)) err(`environments.yml not found: ${envsFile}`);
 }
 
-// Returns the first active env whose Vercel target is "preview" (i.e. staging).
-// The implicit development target always mirrors this source (public vars for
-// `config push`; the shared Firebase project for `secrets`).
-export function findDevSource(activeEnvs: string[]): string | undefined {
-  return activeEnvs.find((e) => vercelTarget(e) === "preview");
+// Returns the first active env whose provider target is "preview" (i.e.
+// staging), resolved from the manifest's authoritative targets map (#87) rather
+// than inferred from the name convention. The implicit development target
+// mirrors this source (public vars for `config push`; the shared Firebase
+// project for `secrets`), so a project can now designate the dev source by
+// declaring a `preview` target for a non-conventionally-named env.
+export function findDevSource(
+  deploymentDir: string,
+  activeEnvs: string[],
+): string | undefined {
+  const resolveTarget = envTargetResolver(deploymentDir);
+  return activeEnvs.find((e) => resolveTarget(e) === "preview");
 }
 
 // Resolves the concrete list of named environments from the requested --env:

@@ -56,6 +56,13 @@ export function parseDeploymentEnv(
   return result;
 }
 
+// The name→target convention. As of #87 this is the **fallback** used only when
+// the manifest's authoritative `deployments[].targets` map does not declare a
+// target for an environment (a legacy config with no `targets:` block, or an env
+// omitted from the map). Manifest-aware resolution lives in `targets.ts`
+// (`resolveEnvTarget` / `envTargetResolver`); prefer it over calling this
+// directly. It is also the basis parseManifest uses to derive targets for a
+// legacy config, so back-compat resolution is unchanged.
 const TARGET_MAP: Record<string, string> = {
   production: "production",
   staging: "preview",
