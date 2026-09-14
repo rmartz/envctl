@@ -28,8 +28,9 @@ export function effectiveValue(
   env: string,
   name: string,
 ): string | undefined {
+  const decl = findDeclaration(manifest, env, name);
+  if (decl !== undefined && decl.source.kind !== "value") return undefined;
   const overlay = manifest.overlays[env]?.[name];
   if (overlay !== undefined) return overlay;
-  const decl = findDeclaration(manifest, env, name);
   return decl?.source.kind === "value" ? decl.source.value : undefined;
 }

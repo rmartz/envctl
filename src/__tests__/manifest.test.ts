@@ -105,6 +105,42 @@ describe("manifest", () => {
     });
   });
 
+  describe("parseManifest — null/scalar manifest", () => {
+    it("does not crash when manifest.yml contains null", () => {
+      write("manifest.yml", "null\n");
+      expect(parseManifest(deployDir)).toEqual({
+        environments: [],
+        deployments: [],
+        services: [],
+        variables: [],
+        variableGroups: [],
+        overlays: {},
+      });
+    });
+
+    it("does not crash when manifest.yml contains a bare scalar", () => {
+      write("manifest.yml", "~\n");
+      expect(parseManifest(deployDir)).toEqual({
+        environments: [],
+        deployments: [],
+        services: [],
+        variables: [],
+        variableGroups: [],
+        overlays: {},
+      });
+    });
+  });
+
+  describe("parseManifest — path traversal guard", () => {
+    it("ignores environment names that would escape the deployment directory", () => {
+      write("manifest.yml", "environments: [../../outside]\nvariables: {}\n");
+      const secret = path.join(tmpDir, "outside.yml");
+      fs.writeFileSync(secret, "SECRET: stolen\n");
+      const manifest = parseManifest(deployDir);
+      expect(manifest.overlays).not.toHaveProperty("../../outside");
+    });
+  });
+
   describe("parseManifest — legacy back-compat", () => {
     it("maps environments.yml + flat per-env files onto the model", () => {
       write("environments.yml", "active:\n  - production\n  - staging\n");
@@ -182,6 +218,17 @@ describe("manifest", () => {
         "manifest.yml",
         "environments: [production]\nvariables:\n  CRON_SECRET: { generate: true }\n",
       );
+      expect(
+        effectiveValue(parseManifest(deployDir), "production", "CRON_SECRET"),
+      ).toBeUndefined();
+    });
+
+    it("ignores an overlay for a generate-sourced variable (source contract)", () => {
+      write(
+        "manifest.yml",
+        "environments: [production]\nvariables:\n  CRON_SECRET: { generate: true }\n",
+      );
+      write("production.yml", "CRON_SECRET: injected-literal\n");
       expect(
         effectiveValue(parseManifest(deployDir), "production", "CRON_SECRET"),
       ).toBeUndefined();
