@@ -13,10 +13,8 @@ The typed foundation for envctl's config-manifest epic
 `deployment/manifest.yml` that declares a project's **structure, sources, and
 scopes** env-agnostically, parsed into one resolved model the rest of the epic
 builds on. **`secrets` now reads the manifest** to resolve the Firebase
-[credential contract](secrets-rotation.md#firebase-credential-contract) (shape
-
-- field→var-name map). The legacy config path ([env.md](env.md)) is still what
-  `config push` and `env pull` run on today.
+[credential contract](secrets-rotation.md#firebase-credential-contract) (shape + field→var-name map). The legacy config path ([env.md](env.md)) is still what
+`config push` and `env pull` run on today.
 
 ## The model
 
