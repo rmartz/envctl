@@ -19,9 +19,9 @@ import {
 const ENV_ADD_USAGE = `Usage: envctl env add <name> --target <${VALID_TARGETS.join("|")}>
 
 Define an environment: append <name> to environments.yml's active list and
-create deployment/<name>.yml. The provider target follows the name convention
-(see 'envctl env list'); --target declares the intended mapping and is validated
-against the allowed set.`;
+create deployment/<name>.yml. --target is required and sets the authoritative
+Vercel deployment target for this env (written to manifest.yml), used by config
+push, env pull, and secrets rotation.`;
 
 interface AddArgs {
   name: string;

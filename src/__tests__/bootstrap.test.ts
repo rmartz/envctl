@@ -219,6 +219,33 @@ describe("runBootstrap — idempotency", () => {
       expect.objectContaining({ init: "firebase" }),
     );
   });
+
+  it("uses the resolved Vercel target (not the env name) for existing-secret detection and verification", async () => {
+    const dir = makeDeploymentDir(tmpDir, ["demo"], {
+      demo: SENTRY_VARS,
+    });
+    // Manifest maps demo → preview.
+    fs.writeFileSync(
+      path.join(dir, "manifest.yml"),
+      [
+        "deployments:",
+        "  - provider: vercel",
+        "    targets: { demo: preview }",
+      ].join("\n") + "\n",
+    );
+    // SENTRY_DSN is already present for the preview target.
+    vi.mocked(VercelClient.prototype.listEnvVars).mockResolvedValue(
+      envRecords(["SENTRY_DSN"], ["preview"]),
+    );
+
+    await runBootstrap(makeOpts(dir, { targetEnv: "demo" }));
+
+    // detectExistingSecrets must check the "preview" target — finding SENTRY_DSN
+    // there — so secrets init is skipped.
+    expect(secretsSpy).not.toHaveBeenCalled();
+    // triggerAndWaitRedeployments must receive the resolved "preview" target.
+    expect(verifySpy).toHaveBeenCalledWith("preview", expect.anything());
+  });
 });
 
 // ─── Phase gating ──────────────────────────────────────────────────────────────

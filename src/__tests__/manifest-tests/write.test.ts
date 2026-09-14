@@ -134,6 +134,20 @@ describe("manifest", () => {
       ]);
     });
 
+    it("parseManifest falls back to environments.yml when the manifest has no environments key (hybrid state)", () => {
+      write("environments.yml", "active:\n  - production\n  - demo\n");
+
+      // setManifestTarget creates a targets-only manifest.yml with no environments key.
+      setManifestTarget(deployDir, "demo", "preview");
+
+      const manifest = parseManifest(deployDir);
+      // Must not silently return [] — must read from environments.yml.
+      expect(manifest.environments).toEqual(["production", "demo"]);
+      expect(manifest.deployments).toEqual([
+        { provider: "vercel", targets: { demo: "preview" } },
+      ]);
+    });
+
     it("upserts a target into an existing vercel deployment, preserving other keys and comments", () => {
       write(
         "manifest.yml",
