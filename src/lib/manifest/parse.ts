@@ -129,8 +129,12 @@ function readOverlays(
   deploymentDir: string,
   environments: readonly string[],
 ): Record<string, Record<string, string>> {
+  const base = path.resolve(deploymentDir);
   const overlays: Record<string, Record<string, string>> = {};
   for (const env of environments) {
+    if (path.dirname(path.resolve(deploymentDir, `${env}.yml`)) !== base) {
+      continue;
+    }
     const values = parseDeploymentEnv(deploymentDir, env);
     if (Object.keys(values).length > 0) overlays[env] = values;
   }
@@ -165,7 +169,8 @@ function parseManifestFile(
   file: string,
 ): ResolvedManifest {
   const content = fs.readFileSync(file, "utf-8");
-  const raw = (content.trim() === "" ? {} : parse(content)) as RawManifest;
+  const parsed: unknown = content.trim() === "" ? {} : parse(content);
+  const raw = (isRecord(parsed) ? parsed : {}) as RawManifest;
   const environments = asStringArray(raw.environments);
   return {
     environments,
