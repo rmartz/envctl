@@ -2,7 +2,8 @@ import type {
   FirebaseCredentialSpec,
   FirebasePatternKind,
 } from "./firebase-credential";
-import type { VercelClient, VercelEnvVar } from "./vercel-api";
+import type { DeploymentProvider } from "./providers/deployment";
+import type { VercelEnvVar } from "./vercel-api";
 
 // Low-level readers for Firebase credential vars in Vercel, parameterized by the
 // resolved credential names (#98) and shape (#97) so no var name is hardcoded.
@@ -22,7 +23,7 @@ export async function getFirebaseSaForEnv(
   envs: VercelEnvVar[],
   pattern: FirebasePatternKind,
   names: FieldNames,
-  client: VercelClient,
+  client: DeploymentProvider,
 ): Promise<FirebaseSaInfo | null> {
   if (pattern === "json") {
     const record = envs.find(
@@ -59,7 +60,7 @@ export async function getFirebaseKeyIdForEnv(
   envs: VercelEnvVar[],
   pattern: FirebasePatternKind,
   names: FieldNames,
-  client: VercelClient,
+  client: DeploymentProvider,
 ): Promise<string> {
   if (pattern === "json") {
     const record = envs.find(

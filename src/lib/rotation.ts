@@ -3,27 +3,21 @@ import * as os from "os";
 import * as path from "path";
 
 import { resolveVercelToken } from "./auth";
-import { err, log, warn } from "./logger";
-import { detectProject } from "./project";
-import { assertProviderAuth, checkVercelPrereqs } from "./rotation-preflight";
-import { VercelClient } from "./vercel-api";
-import type { FirebasePattern, OldFirebaseKey } from "./firebase";
+import { deploymentDir } from "./commands/deployment-config";
 import {
-  invalidateFirebaseKeys,
-  initFirebase,
-  rotateFirebase as rotateFirebaseKeys,
-} from "./firebase";
-import {
-  firebasePresenceKeys,
   resolveFirebaseCredential,
   type FirebaseCredentialSpec,
 } from "./firebase-credential";
+import { err, log, warn } from "./logger";
+import { resolveProjectDeployment } from "./providers/registry";
 import {
-  initSentry,
-  invalidateSentryKey,
-  rotateSentry as rotateSentryKey,
-} from "./sentry";
-import { triggerAndWaitRedeployments } from "./deployments";
+  resolveServiceProvider,
+  serviceProviders,
+  type ServiceContext,
+  type ServiceProvider,
+  type ServiceRotation,
+} from "./providers/service";
+import { assertProviderAuth, checkVercelPrereqs } from "./rotation-preflight";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +26,8 @@ export interface RotationOptions {
   invalidateKeys: boolean;
   /** Project root for `.vercel/project.json` detection. Defaults to CWD. */
   workingDir?: string;
+  /** Deployment config directory (for resolving the deployment provider). */
+  deploymentDir?: string;
   init?: "all" | "firebase" | "sentry";
   /** SA email for --init firebase. Falls back to FIREBASE_SA_EMAIL env var. */
   firebaseSaEmail?: string;
@@ -61,17 +57,27 @@ export async function run(opts: RotationOptions): Promise<void> {
   const token = resolveVercelToken();
   checkVercelPrereqs(token);
 
-  const project = detectProject(opts.workingDir);
+  const workingDir = opts.workingDir ?? process.cwd();
+  const deployment = resolveProjectDeployment(
+    opts.deploymentDir ?? deploymentDir(workingDir),
+    workingDir,
+  );
   log(
-    `Project: ${project.projectId}${project.teamId ? ` (team: ${project.teamId})` : ""}`,
+    `Project: ${deployment.projectId}${deployment.teamId ? ` (team: ${deployment.teamId})` : ""}`,
   );
 
-  const client = new VercelClient(token, project.projectId, project.teamId);
+  const ctx: ServiceContext = {
+    targetEnv: opts.targetEnv,
+    deployment,
+    tempDir: "",
+    firebaseCredential: opts.firebaseCredential ?? resolveFirebaseCredential(),
+    firebaseSaEmail: opts.firebaseSaEmail,
+    gcpProject: opts.gcpProject,
+    sentryOrg: opts.sentryOrg,
+    sentryProject: opts.sentryProject,
+  };
 
-  const firebaseSpec = opts.firebaseCredential ?? resolveFirebaseCredential();
-  const firebaseKeys = firebasePresenceKeys(firebaseSpec);
-
-  const allEnvs = await client.listEnvVars();
+  const allEnvs = await deployment.listEnvVars();
   // Scope key-existence checks to the specific Vercel target so that
   // successive per-env --init calls (e.g. preview then production) don't
   // see secrets created for an earlier target and falsely error.
@@ -81,139 +87,77 @@ export async function run(opts: RotationOptions): Promise<void> {
       : allEnvs.envs.filter((e) => e.target.includes(opts.targetEnv));
   const envKeys = scopedEnvs.map((e) => e.key);
 
-  const hasFirebase = envKeys.some((k) => firebaseKeys.includes(k));
-  const hasSentry = envKeys.some((k) =>
-    ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"].includes(k),
-  );
+  const providers = serviceProviders();
+  const isPresent = (p: ServiceProvider): boolean =>
+    p.presenceKeys(ctx).some((k) => envKeys.includes(k));
+  const willInit = (p: ServiceProvider): boolean =>
+    opts.init === "all" || opts.init === p.provider;
 
-  // Which providers this run will actually act on. For rotate, `opts.provider`
-  // scopes to a single present provider; unset rotates every present one. For
-  // init, `opts.init` selects the provider(s).
-  const rotateFirebase = hasFirebase && opts.provider !== "sentry";
-  const rotateSentry = hasSentry && opts.provider !== "firebase";
-  const willInitFirebase = opts.init === "all" || opts.init === "firebase";
-  const willInitSentry = opts.init === "all" || opts.init === "sentry";
-
+  // Guards, iterating the registry rather than naming providers:
+  //  - init: erroring if a selected provider's secret already exists
+  //  - scoped rotate: erroring if the named provider is absent
+  //  - unscoped rotate: erroring if nothing is present to rotate
   if (opts.init) {
-    if (willInitFirebase && hasFirebase) {
-      err(
-        "Firebase keys already exist in this Vercel project — use `envctl secrets rotate` to update them, not `envctl secrets init`.",
-      );
+    for (const p of providers) {
+      if (willInit(p) && isPresent(p))
+        err(
+          `${p.displayName} keys already exist in this Vercel project — use \`envctl secrets rotate\` to update them, not \`envctl secrets init\`.`,
+        );
     }
-    if (willInitSentry && hasSentry) {
+  } else if (opts.provider) {
+    const scoped = resolveServiceProvider(opts.provider);
+    if (!isPresent(scoped))
       err(
-        "Sentry keys already exist in this Vercel project — use `envctl secrets rotate` to update them, not `envctl secrets init`.",
+        `No ${scoped.displayName} keys found in this Vercel project — nothing to rotate for \`${opts.provider}\`. To push them for the first time, use \`envctl secrets init ${opts.provider}\`.`,
       );
-    }
-  } else if (opts.provider === "firebase" && !hasFirebase) {
+  } else if (!providers.some(isPresent)) {
     err(
-      "No Firebase keys found in this Vercel project — nothing to rotate for `firebase`. To push them for the first time, use `envctl secrets init firebase`.",
-    );
-  } else if (opts.provider === "sentry" && !hasSentry) {
-    err(
-      "No Sentry keys found in this Vercel project — nothing to rotate for `sentry`. To push them for the first time, use `envctl secrets init sentry`.",
-    );
-  } else if (!hasFirebase && !hasSentry) {
-    err(
-      "No Firebase or Sentry keys found in this Vercel project — nothing to rotate. To push secrets for the first time, use `envctl secrets init`.",
+      `No ${providers.map((p) => p.displayName).join(" or ")} keys found in this Vercel project — nothing to rotate. To push secrets for the first time, use \`envctl secrets init\`.`,
     );
   }
 
+  // Which providers this run acts on: for init, whichever `opts.init` selects;
+  // for rotate, whichever are present and not excluded by a provider scope.
+  const acting = providers.filter((p) =>
+    opts.init
+      ? willInit(p)
+      : isPresent(p) &&
+        (opts.provider === undefined || opts.provider === p.provider),
+  );
+
   // Fail fast if a provider we would mint/push for is not authenticated, before
   // any key is created — so a rotation can never leave a partial state (#91).
-  assertProviderAuth(
-    opts.init
-      ? {
-          firebase: willInitFirebase,
-          sentry: willInitSentry,
-          sentryOrg: opts.sentryOrg,
-          sentryProject: opts.sentryProject,
-        }
-      : {
-          firebase: rotateFirebase,
-          sentry: rotateSentry,
-          sentryOrg: opts.sentryOrg,
-          sentryProject: opts.sentryProject,
-        },
-  );
+  assertProviderAuth({
+    firebase: acting.some((p) => p.authKey === "firebase"),
+    sentry: acting.some((p) => p.authKey === "sentry"),
+    sentryOrg: opts.sentryOrg,
+    sentryProject: opts.sentryProject,
+  });
 
   log(
     `Target: ${opts.targetEnv} | ${opts.init ? "Initializing" : `Invalidate after redeployment: ${opts.invalidateKeys}`}`,
   );
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "rotate-keys-"));
+  ctx.tempDir = tempDir;
   try {
     if (opts.init) {
-      if (opts.init === "all" || opts.init === "firebase") {
-        await initFirebase(
-          opts.targetEnv,
-          client,
-          tempDir,
-          opts.firebaseSaEmail,
-          opts.gcpProject,
-          firebaseSpec,
-        );
-      }
-      if (opts.init === "all" || opts.init === "sentry") {
-        await initSentry(
-          opts.targetEnv,
-          client,
-          opts.sentryOrg,
-          opts.sentryProject,
-        );
-      }
-      await triggerAndWaitRedeployments(opts.targetEnv, client);
+      for (const p of acting) await p.init(ctx);
+      await deployment.triggerAndWaitRedeployments(opts.targetEnv);
       log("Key initialization complete.");
     } else {
-      let oldFirebaseKeys: OldFirebaseKey[] = [];
-      let fp: FirebasePattern | null = null;
-      let oldSentryKeyId = "";
+      const rotations: ServiceRotation[] = [];
+      for (const p of acting) rotations.push(await p.rotate(ctx));
 
-      if (rotateFirebase) {
-        ({ oldKeys: oldFirebaseKeys, fp } = await rotateFirebaseKeys(
-          opts.targetEnv,
-          client,
-          tempDir,
-          firebaseSpec,
-        ));
-      }
-      if (rotateSentry) {
-        oldSentryKeyId = await rotateSentryKey(
-          opts.targetEnv,
-          client,
-          opts.sentryOrg,
-          opts.sentryProject,
-        );
-      }
-
-      await triggerAndWaitRedeployments(opts.targetEnv, client);
+      await deployment.triggerAndWaitRedeployments(opts.targetEnv);
 
       if (opts.invalidateKeys) {
         log("Invalidating old keys...");
-        if (rotateFirebase && fp) await invalidateFirebaseKeys(client, fp);
-        if (rotateSentry && oldSentryKeyId) {
-          const org = opts.sentryOrg ?? process.env.SENTRY_ORG;
-          const project = opts.sentryProject ?? process.env.SENTRY_PROJECT;
-          if (!org || !project)
-            return err(
-              "SENTRY_ORG and SENTRY_PROJECT are required for key invalidation",
-            );
-          await invalidateSentryKey(oldSentryKeyId, org, project);
-        }
+        for (const rotation of rotations) await rotation.invalidate();
       } else {
         log("Skipping key invalidation (--no-invalidate)");
-        for (const { vercelEnv, keyId, saEmail } of oldFirebaseKeys) {
-          warn(
-            `Old Firebase key to remove: ${keyId} (${vercelEnv}, account: ${saEmail})`,
-          );
-        }
-        if (oldSentryKeyId) {
-          const org = opts.sentryOrg ?? process.env.SENTRY_ORG;
-          const project = opts.sentryProject ?? process.env.SENTRY_PROJECT;
-          warn(
-            `Old Sentry key to remove: ${oldSentryKeyId} (project: ${org}/${project})`,
-          );
-        }
+        for (const rotation of rotations)
+          for (const message of rotation.retiredKeyWarnings()) warn(message);
       }
 
       log("Key rotation complete.");

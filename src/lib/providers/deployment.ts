@@ -43,7 +43,11 @@ export interface DeploymentProvider {
     envs: VercelEnvVar[],
     type?: EnvVarType,
   ): Promise<string>;
-  deleteEnvVar(id: string): Promise<void>;
+  removeEnvVarFromTarget(
+    id: string,
+    existingTargets: string[],
+    vercelEnv: string,
+  ): Promise<void>;
   triggerAndWaitRedeployments(targetEnv: string): Promise<void>;
   refreshPreviewDeployments(): Promise<void>;
 }
@@ -99,12 +103,20 @@ class VercelDeploymentProvider implements DeploymentProvider {
     value: string,
     target: string,
     envs: VercelEnvVar[],
-    type: EnvVarType = "encrypted",
+    type?: EnvVarType,
   ): Promise<string> {
-    return this.client.setEnvForTarget(key, value, target, envs, type);
+    // Forward `type` only when the caller set it, so the underlying client's
+    // own default applies and the delegated call keeps its original arity.
+    return type === undefined
+      ? this.client.setEnvForTarget(key, value, target, envs)
+      : this.client.setEnvForTarget(key, value, target, envs, type);
   }
-  deleteEnvVar(id: string): Promise<void> {
-    return this.client.deleteEnvVar(id);
+  removeEnvVarFromTarget(
+    id: string,
+    existingTargets: string[],
+    vercelEnv: string,
+  ): Promise<void> {
+    return this.client.removeEnvVarFromTarget(id, existingTargets, vercelEnv);
   }
   triggerAndWaitRedeployments(targetEnv: string): Promise<void> {
     return triggerRedeploy(targetEnv, this.client);

@@ -17,7 +17,8 @@ import {
   getFirebaseSaForEnv,
   type FirebaseSaInfo,
 } from "./firebase-vars";
-import type { VercelClient, VercelEnvVar } from "./vercel-api";
+import type { DeploymentProvider } from "./providers/deployment";
+import type { VercelEnvVar } from "./vercel-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,7 +55,7 @@ function targetEnvs(targetEnv: string): string[] {
 // needed on init and on a json→split migration, skipped on a plain split
 // rotation where those identity vars are unchanged.
 async function writeCredential(
-  client: VercelClient,
+  client: DeploymentProvider,
   pattern: FirebasePatternKind,
   names: FirebaseCredentialSpec["names"],
   vercelEnv: string,
@@ -100,7 +101,7 @@ async function writeCredential(
 // cover multiple targets; for shared records only the specific target is
 // removed to avoid silently dropping the credential from other environments.
 async function removeVars(
-  client: VercelClient,
+  client: DeploymentProvider,
   keys: string[],
   vercelEnv: string,
   envs: VercelEnvVar[],
@@ -122,7 +123,7 @@ async function detectSaIdentity(
   envs: VercelEnvVar[],
   pattern: FirebasePatternKind,
   names: FirebaseCredentialSpec["names"],
-  client: VercelClient,
+  client: DeploymentProvider,
 ): Promise<FirebaseSaInfo> {
   for (const env of ["production", "preview", "development"]) {
     const sa = await getFirebaseSaForEnv(env, envs, pattern, names, client);
@@ -144,7 +145,7 @@ async function detectSaIdentity(
 
 export async function rotateFirebase(
   targetEnv: string,
-  client: VercelClient,
+  client: DeploymentProvider,
   tempDir: string,
   spec: FirebaseCredentialSpec = resolveFirebaseCredential(),
 ): Promise<{ oldKeys: OldFirebaseKey[]; fp: FirebasePattern }> {
@@ -298,7 +299,7 @@ export async function rotateFirebase(
 
 export async function initFirebase(
   targetEnv: string,
-  client: VercelClient,
+  client: DeploymentProvider,
   tempDir: string,
   saEmailOverride?: string,
   gcpProjectOverride?: string,
@@ -345,7 +346,7 @@ export async function initFirebase(
 // ─── Firebase key invalidation ────────────────────────────────────────────────
 
 export async function invalidateFirebaseKeys(
-  client: VercelClient,
+  client: DeploymentProvider,
   fp: FirebasePattern,
 ): Promise<void> {
   log(
