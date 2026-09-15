@@ -158,6 +158,31 @@ now-stale vars** — so a `json`→`split` (or `split`→`json`) move leaves no 
 credential var behind. Each environment is read under **its own** current shape,
 so a partially-migrated project is never misread into sweeping a still-active key.
 
+## Generated secrets
+
+Beyond provider credentials, a project can declare **project-owned generated
+secrets** in the manifest — a variable with `generate: true` (top-level ⇒ all
+environments, or inside a scoped `variableGroup`). envctl mints these itself; the
+value never appears in `manifest.yml`, an overlay, or any committed file — only in
+the deployment target. The motivating case is a Vercel-cron `CRON_SECRET`.
+
+[`generated-secrets.ts`](../src/lib/generated-secrets.ts):
+
+- **Format (no knobs, v1):** one strong default — 32 random bytes, base64url —
+  minted **distinct per environment** (production's value ≠ staging's).
+- **`secrets init`** mints a value for each scoped target that lacks one, and is
+  **idempotent**: an existing value is left untouched.
+- **`secrets rotate`** re-mints every scoped value. There is no external
+  credential to invalidate, so rotation is complete once the new value is pushed
+  and proven live by the redeploy.
+- **Shared redeploy (atomicity, #74):** the generated values are pushed **before**
+  the provider dispatch, so the provider rotation's single redeploy proves them
+  live too. A project with only generated secrets (no Firebase/Sentry) triggers
+  its own redeploy instead.
+
+Selection is manifest-declared (the `generate` source), independent of the
+presence-driven provider detection above.
+
 ## Prerequisites
 
 Vercel is checked by `checkVercelPrereqs`
