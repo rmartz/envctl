@@ -9,6 +9,7 @@ import {
   type FirebaseCredentialSpec,
 } from "./firebase-credential";
 import { err, log, warn } from "./logger";
+import { parseManifest } from "./manifest";
 import { resolveProjectDeployment } from "./providers/registry";
 import {
   resolveServiceProvider,
@@ -18,6 +19,22 @@ import {
   type ServiceRotation,
 } from "./providers/service";
 import { assertProviderAuth, checkVercelPrereqs } from "./rotation-preflight";
+import { envTargetResolver } from "./targets";
+
+// The provider targets a service is scoped to (#89), from its manifest
+// `services[].environments` declaration mapped through the env→target model.
+// Undefined ⇒ the service is unscoped and applies to every environment.
+export function serviceScopeTargets(
+  configDir: string,
+  provider: string,
+): string[] | undefined {
+  const service = parseManifest(configDir).services.find(
+    (s) => s.provider === provider,
+  );
+  if (!service?.environments) return undefined;
+  const resolveTarget = envTargetResolver(configDir);
+  return [...new Set(service.environments.map((e) => resolveTarget(e)))];
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,10 +75,8 @@ export async function run(opts: RotationOptions): Promise<void> {
   checkVercelPrereqs(token);
 
   const workingDir = opts.workingDir ?? process.cwd();
-  const deployment = resolveProjectDeployment(
-    opts.deploymentDir ?? deploymentDir(workingDir),
-    workingDir,
-  );
+  const configDir = opts.deploymentDir ?? deploymentDir(workingDir);
+  const deployment = resolveProjectDeployment(configDir, workingDir);
   log(
     `Project: ${deployment.projectId}${deployment.teamId ? ` (team: ${deployment.teamId})` : ""}`,
   );
@@ -93,6 +108,22 @@ export async function run(opts: RotationOptions): Promise<void> {
   const willInit = (p: ServiceProvider): boolean =>
     opts.init === "all" || opts.init === p.provider;
 
+  // Environment scoping (#89): the provider targets this run covers, and each
+  // service's declared scope. A service whose scope does not intersect this
+  // run's targets is skipped entirely (silently — not acted on); a service that
+  // partially overlaps acts only on its in-scope targets (enforced per-target
+  // inside init/rotate via `allowedTargets`).
+  const runTargets =
+    opts.targetEnv === "all"
+      ? ["production", "preview", "development"]
+      : [opts.targetEnv];
+  const scopeFor = (p: ServiceProvider): string[] | undefined =>
+    serviceScopeTargets(configDir, p.provider);
+  const inScope = (p: ServiceProvider): boolean => {
+    const scope = scopeFor(p);
+    return scope === undefined || scope.some((t) => runTargets.includes(t));
+  };
+
   // Guards, iterating the registry rather than naming providers:
   //  - init: erroring if a selected provider's secret already exists
   //  - scoped rotate: erroring if the named provider is absent
@@ -118,11 +149,13 @@ export async function run(opts: RotationOptions): Promise<void> {
 
   // Which providers this run acts on: for init, whichever `opts.init` selects;
   // for rotate, whichever are present and not excluded by a provider scope.
-  const acting = providers.filter((p) =>
-    opts.init
-      ? willInit(p)
-      : isPresent(p) &&
-        (opts.provider === undefined || opts.provider === p.provider),
+  const acting = providers.filter(
+    (p) =>
+      inScope(p) &&
+      (opts.init
+        ? willInit(p)
+        : isPresent(p) &&
+          (opts.provider === undefined || opts.provider === p.provider)),
   );
 
   // Fail fast if a provider we would mint/push for is not authenticated, before
@@ -142,12 +175,14 @@ export async function run(opts: RotationOptions): Promise<void> {
   ctx.tempDir = tempDir;
   try {
     if (opts.init) {
-      for (const p of acting) await p.init(ctx);
+      for (const p of acting)
+        await p.init({ ...ctx, allowedTargets: scopeFor(p) });
       await deployment.triggerAndWaitRedeployments(opts.targetEnv);
       log("Key initialization complete.");
     } else {
       const rotations: ServiceRotation[] = [];
-      for (const p of acting) rotations.push(await p.rotate(ctx));
+      for (const p of acting)
+        rotations.push(await p.rotate({ ...ctx, allowedTargets: scopeFor(p) }));
 
       await deployment.triggerAndWaitRedeployments(opts.targetEnv);
 

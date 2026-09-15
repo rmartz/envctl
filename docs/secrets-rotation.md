@@ -183,6 +183,33 @@ the deployment target. The motivating case is a Vercel-cron `CRON_SECRET`.
 Selection is manifest-declared (the `generate` source), independent of the
 presence-driven provider detection above.
 
+## Environment-scoped services
+
+A service can be declared to exist only in a subset of environments (#89) — e.g.
+an expensive tracking service that runs in production only:
+
+```yaml
+services:
+  - provider: firebase
+    environments: [production]
+```
+
+`serviceScopeTargets` maps a service's `environments` to its provider targets.
+`run` then applies the scope two ways:
+
+- **Selection:** a service whose scope does **not** intersect the run's targets
+  is skipped entirely — not authenticated, minted, or rotated (so a prod-only
+  service is a silent no-op in a staging run, never a "nothing to rotate" error).
+- **Per-target:** a service that partially overlaps (e.g. a prod-only service in
+  an `--env all` run) acts only on its in-scope targets — `init`/`rotate` receive
+  the `allowedTargets` set and skip the rest.
+
+A service with **no** `environments` is unscoped and applies to every
+environment (the default). Scoping is **service-/group-level only** — individual
+variables inherit their container's scope and cannot override it; ungrouped
+top-level variables default to all environments. Variable-group scoping for
+[generated secrets](#generated-secrets) works the same way (`group.environments`).
+
 ## Prerequisites
 
 Vercel is checked by `checkVercelPrereqs`
