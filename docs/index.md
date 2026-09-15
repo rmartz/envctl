@@ -35,6 +35,9 @@ Format (OKF). One page per script or subsystem.
 - [Secrets rotation engine](secrets-rotation.md) — atomically minting,
   deploying, verifying, and invalidating Firebase and Sentry credentials
   (`secrets rotate` / `secrets init`).
+- [Provider registry](providers.md) — the `DeploymentProvider` and
+  `ServiceProvider` interfaces and registries that make hosting sinks and secret
+  sources pluggable by the manifest `provider:` name.
 
 Other runtime subsystems (the Vercel API client, deployment orchestration) are
 not yet documented here; pages are added as those modules are next touched.

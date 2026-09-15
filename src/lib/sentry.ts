@@ -1,6 +1,6 @@
 import { resolveSentryToken } from "./auth";
 import { err, log, warn } from "./logger";
-import type { VercelClient } from "./vercel-api";
+import type { DeploymentProvider } from "./providers/deployment";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ async function sentryRequest<T>(
 
 export async function rotateSentry(
   targetEnv: string,
-  client: VercelClient,
+  client: DeploymentProvider,
   sentryOrgOverride?: string,
   sentryProjectOverride?: string,
 ): Promise<string> {
@@ -137,7 +137,7 @@ export async function rotateSentry(
 
 export async function initSentry(
   targetEnv: string,
-  client: VercelClient,
+  client: DeploymentProvider,
   sentryOrgOverride?: string,
   sentryProjectOverride?: string,
 ): Promise<void> {
