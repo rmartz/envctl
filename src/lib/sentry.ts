@@ -53,6 +53,7 @@ export async function rotateSentry(
   client: DeploymentProvider,
   sentryOrgOverride?: string,
   sentryProjectOverride?: string,
+  allowedTargets?: string[],
 ): Promise<string> {
   log("Rotating Sentry client key...");
 
@@ -109,6 +110,7 @@ export async function rotateSentry(
   log(`  New Sentry key ID: ${newKey.id}`);
 
   for (const vercelEnv of targetEnvs(targetEnv)) {
+    if (allowedTargets && !allowedTargets.includes(vercelEnv)) continue;
     const currentEnvs = await client.listEnvVars();
     if (targetEnv === "all") {
       const existing = currentEnvs.envs.find(
@@ -140,6 +142,7 @@ export async function initSentry(
   client: DeploymentProvider,
   sentryOrgOverride?: string,
   sentryProjectOverride?: string,
+  allowedTargets?: string[],
 ): Promise<void> {
   log("Initializing Sentry DSN...");
 
@@ -165,6 +168,7 @@ export async function initSentry(
 
   const currentEnvs = await client.listEnvVars();
   for (const vercelEnv of targetEnvs(targetEnv)) {
+    if (allowedTargets && !allowedTargets.includes(vercelEnv)) continue;
     await client.setEnvForTarget(
       dsnKeyName,
       newKey.dsn.public,

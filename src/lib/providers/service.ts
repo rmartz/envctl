@@ -23,6 +23,12 @@ export interface ServiceContext {
   gcpProject?: string;
   sentryOrg?: string;
   sentryProject?: string;
+  /**
+   * The provider targets this service is scoped to (#89), from the manifest's
+   * `services[].environments`. Undefined ⇒ all environments (unscoped). init /
+   * rotate skip any target outside this set.
+   */
+  allowedTargets?: string[];
 }
 
 // The outcome of rotating one service: how to invalidate the retired credential
@@ -60,6 +66,7 @@ const firebaseServiceProvider: ServiceProvider = {
       ctx.firebaseSaEmail,
       ctx.gcpProject,
       ctx.firebaseCredential,
+      ctx.allowedTargets,
     ),
   rotate: async (ctx) => {
     const { oldKeys, fp } = await rotateFirebase(
@@ -67,6 +74,7 @@ const firebaseServiceProvider: ServiceProvider = {
       ctx.deployment,
       ctx.tempDir,
       ctx.firebaseCredential,
+      ctx.allowedTargets,
     );
     return {
       invalidate: async () => {
@@ -99,13 +107,20 @@ const sentryServiceProvider: ServiceProvider = {
   authKey: "sentry",
   presenceKeys: () => ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"],
   init: (ctx) =>
-    initSentry(ctx.targetEnv, ctx.deployment, ctx.sentryOrg, ctx.sentryProject),
+    initSentry(
+      ctx.targetEnv,
+      ctx.deployment,
+      ctx.sentryOrg,
+      ctx.sentryProject,
+      ctx.allowedTargets,
+    ),
   rotate: async (ctx) => {
     const oldKeyId = await rotateSentry(
       ctx.targetEnv,
       ctx.deployment,
       ctx.sentryOrg,
       ctx.sentryProject,
+      ctx.allowedTargets,
     );
     return {
       invalidate: async () => {

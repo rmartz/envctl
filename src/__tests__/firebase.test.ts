@@ -374,5 +374,54 @@ describe("firebase credential provisioning", () => {
       expect(valueFor(fake, "FB_PKID", "production")).toBe("rotated-key-id");
       expect(oldKeys.map((k) => k.keyId)).toEqual(["new-key-id"]);
     });
+
+    it("rotates only the allowed targets when the service is scoped (#89)", async () => {
+      // Split credential present on BOTH production and preview.
+      const both = (target: string): VercelEnvVar[] => [
+        {
+          id: `${target}-pid`,
+          key: "FIREBASE_PROJECT_ID",
+          value: "proj-x",
+          target: [target],
+          type: "encrypted",
+        },
+        {
+          id: `${target}-ce`,
+          key: "FIREBASE_CLIENT_EMAIL",
+          value: "sa@proj.iam",
+          target: [target],
+          type: "encrypted",
+        },
+        {
+          id: `${target}-pk`,
+          key: "FIREBASE_PRIVATE_KEY",
+          value: "old-pk",
+          target: [target],
+          type: "encrypted",
+        },
+        {
+          id: `${target}-pkid`,
+          key: "FIREBASE_PRIVATE_KEY_ID",
+          value: `old-${target}`,
+          target: [target],
+          type: "encrypted",
+        },
+      ];
+      const fake = new FakeVercel([...both("production"), ...both("preview")]);
+      const spec = resolveFirebaseCredential({
+        provider: "firebase",
+        credential: "split",
+      });
+
+      await rotateFirebase("all", asClient(fake), tmp, spec, ["production"]);
+
+      // production rotated to the new key; preview left untouched.
+      expect(valueFor(fake, "FIREBASE_PRIVATE_KEY_ID", "production")).toBe(
+        "new-key-id",
+      );
+      expect(valueFor(fake, "FIREBASE_PRIVATE_KEY_ID", "preview")).toBe(
+        "old-preview",
+      );
+    });
   });
 });

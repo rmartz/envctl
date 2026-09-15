@@ -148,6 +148,7 @@ export async function rotateFirebase(
   client: DeploymentProvider,
   tempDir: string,
   spec: FirebaseCredentialSpec = resolveFirebaseCredential(),
+  allowedTargets?: string[],
 ): Promise<{ oldKeys: OldFirebaseKey[]; fp: FirebasePattern }> {
   log("Rotating Firebase service account keys...");
 
@@ -184,6 +185,11 @@ export async function rotateFirebase(
   let rotatedAny = false;
 
   for (const vercelEnv of targetEnvs(targetEnv)) {
+    // Environment-scoped service (#89): skip targets outside the service's
+    // declared scope. rotation.run excludes a service that is wholly out of
+    // scope, so at least one target always survives here (no false "no keys
+    // rotated" error).
+    if (allowedTargets && !allowedTargets.includes(vercelEnv)) continue;
     if (targetEnv === "all") {
       const hasKey = presenceKeys.some((k) =>
         allEnvs.envs.some((e) => e.key === k && e.target.includes(vercelEnv)),
@@ -304,6 +310,7 @@ export async function initFirebase(
   saEmailOverride?: string,
   gcpProjectOverride?: string,
   spec: FirebaseCredentialSpec = resolveFirebaseCredential(),
+  allowedTargets?: string[],
 ): Promise<void> {
   log("Initializing Firebase service account keys...");
 
@@ -320,6 +327,8 @@ export async function initFirebase(
 
   const currentEnvs = await client.listEnvVars();
   for (const vercelEnv of targetEnvs(targetEnv)) {
+    // Environment-scoped service (#89): skip targets outside the service's scope.
+    if (allowedTargets && !allowedTargets.includes(vercelEnv)) continue;
     const keyFile = path.join(tempDir, `key-${vercelEnv}.json`);
     createGcpKey(keyFile, saEmail, gcpProject);
 
