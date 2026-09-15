@@ -11,6 +11,7 @@ import {
 import { err, log, warn } from "./logger";
 import { resolveProjectDeployment } from "./providers/registry";
 import {
+  resolveServiceProvider,
   serviceProviders,
   type ServiceContext,
   type ServiceProvider,
@@ -104,8 +105,8 @@ export async function run(opts: RotationOptions): Promise<void> {
         );
     }
   } else if (opts.provider) {
-    const scoped = providers.find((p) => p.provider === opts.provider);
-    if (scoped && !isPresent(scoped))
+    const scoped = resolveServiceProvider(opts.provider);
+    if (!isPresent(scoped))
       err(
         `No ${scoped.displayName} keys found in this Vercel project — nothing to rotate for \`${opts.provider}\`. To push them for the first time, use \`envctl secrets init ${opts.provider}\`.`,
       );
