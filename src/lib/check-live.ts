@@ -1,4 +1,5 @@
 import { mkError, mkWarning, type Finding } from "./check";
+import { checkFirebaseSaDrift } from "./check-firebase";
 import { deploymentDir } from "./commands/deployment-config";
 import { parseDeploymentEnv } from "./environments";
 import { parseManifest } from "./manifest";
@@ -47,5 +48,9 @@ export async function checkLive(workingDir: string): Promise<Finding[]> {
         );
     }
   }
+
+  // The deprecated FIREBASE_SA_EMAIL must agree with the credential's live
+  // clientEmail (#103).
+  findings.push(...(await checkFirebaseSaDrift(deployment, configDir, live)));
   return findings;
 }

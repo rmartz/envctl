@@ -2,11 +2,8 @@ import {
   firebasePresenceKeys,
   type FirebaseCredentialSpec,
 } from "../firebase-credential";
-import {
-  initFirebase,
-  invalidateFirebaseKeys,
-  rotateFirebase,
-} from "../firebase";
+import { initFirebase, rotateFirebase } from "../firebase";
+import { invalidateFirebaseKeys } from "../firebase-invalidate";
 import { err } from "../logger";
 import { initSentry, invalidateSentryKey, rotateSentry } from "../sentry";
 import type { DeploymentProvider } from "./deployment";

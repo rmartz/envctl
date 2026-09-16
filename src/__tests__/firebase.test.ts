@@ -7,79 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as gcp from "../lib/gcp";
 import { initFirebase, rotateFirebase } from "../lib/firebase";
 import { resolveFirebaseCredential } from "../lib/firebase-credential";
-import type { VercelClient, VercelEnvVar } from "../lib/vercel-api";
+import type { VercelEnvVar } from "../lib/vercel-api";
 
-const MINTED = {
-  private_key_id: "new-key-id",
-  private_key: "-----BEGIN PRIVATE KEY-----\nnew\n-----END PRIVATE KEY-----\n",
-  client_email: "sa@proj.iam.gserviceaccount.com",
-  project_id: "proj-x",
-};
-
-// In-memory stand-in for VercelClient — tracks a live env-var store so writes,
-// deletes, and reads compose the way the real API does, without any network.
-class FakeVercel {
-  private seq = 0;
-  envs: VercelEnvVar[];
-  constructor(envs: VercelEnvVar[] = []) {
-    this.envs = envs;
-  }
-  listEnvVars(): Promise<{ envs: VercelEnvVar[]; pagination: undefined }> {
-    return Promise.resolve({
-      envs: this.envs.map((e) => ({ ...e })),
-      pagination: undefined,
-    });
-  }
-  getEnvVarValue(id: string): Promise<string> {
-    const e = this.envs.find((x) => x.id === id);
-    return e
-      ? Promise.resolve(e.value)
-      : Promise.reject(new Error(`no var ${id}`));
-  }
-  findEnvVar(
-    envs: VercelEnvVar[],
-    key: string,
-    target: string,
-  ): VercelEnvVar | undefined {
-    return envs.find((e) => e.key === key && e.target.includes(target));
-  }
-  deleteEnvVar(id: string): Promise<void> {
-    this.envs = this.envs.filter((e) => e.id !== id);
-    return Promise.resolve();
-  }
-  removeEnvVarFromTarget(
-    id: string,
-    existingTargets: string[],
-    vercelEnv: string,
-  ): Promise<void> {
-    const remaining = existingTargets.filter((t) => t !== vercelEnv);
-    if (remaining.length === 0) {
-      this.envs = this.envs.filter((e) => e.id !== id);
-    } else {
-      this.envs = this.envs.map((e) =>
-        e.id === id ? { ...e, target: remaining } : e,
-      );
-    }
-    return Promise.resolve();
-  }
-  setEnvForTarget(
-    key: string,
-    value: string,
-    target: string,
-    _all: VercelEnvVar[],
-    type: "plain" | "encrypted" = "encrypted",
-  ): Promise<string> {
-    this.envs = this.envs.filter(
-      (e) => !(e.key === key && e.target.includes(target)),
-    );
-    const id = `id-${++this.seq}`;
-    this.envs.push({ id, key, value, target: [target], type });
-    return Promise.resolve(id);
-  }
-}
-
-const asClient = (fake: FakeVercel): VercelClient =>
-  fake as unknown as VercelClient;
+import { MINTED, FakeVercel, asClient, valueFor, envVar } from "./fixtures";
 
 const keysFor = (fake: FakeVercel, target: string): string[] =>
   fake.envs
@@ -87,27 +17,13 @@ const keysFor = (fake: FakeVercel, target: string): string[] =>
     .map((e) => e.key)
     .sort();
 
-const valueFor = (
-  fake: FakeVercel,
-  key: string,
-  target: string,
-): string | undefined =>
-  fake.envs.find((e) => e.key === key && e.target.includes(target))?.value;
-
-const envVar = (id: string, key: string, value: string): VercelEnvVar => ({
-  id,
-  key,
-  value,
-  target: ["production"],
-  type: "encrypted",
-});
-
 describe("firebase credential provisioning", () => {
   let tmp: string;
 
   beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "fb-test-"));
     vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(gcp, "createGcpKey").mockImplementation((keyFile: string) => {
       fs.writeFileSync(keyFile, JSON.stringify(MINTED));
     });

@@ -49,9 +49,11 @@ but differ in how they decide what to act on and what they do with the old key:
 `init`'s service auto-detection lives in
 [`secrets-plan.ts`](../src/lib/commands/secrets-plan.ts) (`resolveAutoInit`),
 which also validates up front that every config value the chosen service needs
-(`FIREBASE_SA_EMAIL`, `FIREBASE_PROJECT_ID`, `SENTRY_ORG`, `SENTRY_PROJECT`) is
-present — in the deployment YAML or the shell — and reports **every** gap at
-once.
+(`FIREBASE_PROJECT_ID`, `SENTRY_ORG`, `SENTRY_PROJECT`) is present — in the
+deployment YAML or the shell — and reports **every** gap at once.
+`FIREBASE_SA_EMAIL` is **not** required here anymore: init derives the service
+account from the credential, falling back to a declared value only for a blank
+init (see [SA identity](#service-account-identity-firebase_sa_email-is-deprecated)).
 
 ## The atomic flow
 
@@ -148,6 +150,25 @@ the standard `FIREBASE_*` names.
   `FIREBASE_SERVICE_ACCOUNT` var holding the SA-key JSON blob. Retained only so
   envctl can read and migrate projects still on the old default; declaring it
   emits a deprecation warning.
+
+### Service-account identity (`FIREBASE_SA_EMAIL` is deprecated)
+
+The service account envctl mints/rotates keys for is the **same** identity the
+app reads from the credential's `clientEmail`. So envctl **derives** it from the
+credential rather than a separately-declared var (#103):
+
+- **rotate** reads the SA identity from the live credential and never requires
+  `FIREBASE_SA_EMAIL`.
+- **init** derives it from an existing credential when one is present for the
+  target or a sibling target (a scoped/cross-env init). Only a genuinely blank
+  init — no credential anywhere — still needs a declared `FIREBASE_SA_EMAIL`
+  (back-compat), which now emits a **deprecation warning**; deterministic SA
+  discovery for that case is tracked in
+  [#70](https://github.com/rmartz/envctl/issues/70).
+
+`FIREBASE_SA_EMAIL` is therefore **deprecated, not removed**. A project that
+still declares it and lets it drift from the credential's `clientEmail` is
+flagged by [`envctl check --live`](check.md).
 
 ### Migration
 
