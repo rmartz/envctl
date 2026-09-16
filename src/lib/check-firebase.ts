@@ -32,8 +32,9 @@ export async function checkFirebaseSaDrift(
     const declared = parseDeploymentEnv(configDir, env).FIREBASE_SA_EMAIL;
     if (!declared) continue;
     const target = resolveTarget(env);
-    if (seen.has(target)) continue;
-    seen.add(target);
+    const seenKey = `${target}|${declared}`;
+    if (seen.has(seenKey)) continue;
+    seen.add(seenKey);
 
     const pattern = detectEnvPattern(liveEnvs, spec.names, target);
     if (!pattern) continue;
