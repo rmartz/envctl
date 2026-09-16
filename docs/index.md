@@ -35,6 +35,9 @@ Format (OKF). One page per script or subsystem.
 - [Secrets rotation engine](secrets-rotation.md) — atomically minting,
   deploying, verifying, and invalidating Firebase and Sentry credentials
   (`secrets rotate` / `secrets init`).
+- [Config validation](check.md) — read-only checks that a project's deployment
+  manifest is coherent and deployable, with an optional live-drift check
+  (`check` / `check --live`).
 - [Provider registry](providers.md) — the `DeploymentProvider` and
   `ServiceProvider` interfaces and registries that make hosting sinks and secret
   sources pluggable by the manifest `provider:` name.

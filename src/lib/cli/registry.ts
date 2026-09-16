@@ -4,6 +4,7 @@
 
 import { runAuthStatus } from "../commands/auth";
 import { runBootstrapCommand } from "../commands/bootstrap";
+import { runCheck } from "../commands/check";
 import { runConfigPull, runEnvPullDeprecated } from "../commands/config-pull";
 import { configPushCommand } from "../commands/config-push";
 import { runEnvAdd, runEnvList } from "../commands/env";
@@ -86,6 +87,12 @@ export function buildRegistry(): Registry {
         "Configure a project end to end: push config, init secrets, pull local env",
       commands: [],
       run: runBootstrapCommand,
+    },
+    {
+      name: "check",
+      summary: "Validate the project's deployment config (read-only)",
+      commands: [],
+      run: runCheck,
     },
     {
       name: "secrets",
