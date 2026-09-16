@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 import { err, log, warn } from "./logger";
-import { createGcpKey, deleteGcpKey, listUserManagedGcpKeys } from "./gcp";
+import { createGcpKey } from "./gcp";
 import {
   firebasePresenceKeys,
   patternVarNames,
@@ -139,6 +139,24 @@ async function detectSaIdentity(
   return err(
     "Could not determine Firebase service account identity from Vercel",
   );
+}
+
+// Derive the SA identity from an existing credential for `init` — the
+// steady-state source of truth (#103). Scans the targets under each one's own
+// shape and returns the first resolvable SA (mirroring rotate's preview→dev
+// fallback), or null when no credential exists yet (a genuinely blank init).
+async function deriveInitSaIdentity(
+  client: DeploymentProvider,
+  envs: VercelEnvVar[],
+  names: FirebaseCredentialSpec["names"],
+): Promise<FirebaseSaInfo | null> {
+  for (const env of ["production", "preview", "development"]) {
+    const pattern = detectEnvPattern(envs, names, env);
+    if (!pattern) continue;
+    const sa = await getFirebaseSaForEnv(env, envs, pattern, names, client);
+    if (sa?.email) return sa;
+  }
+  return null;
 }
 
 // ─── Firebase rotation ────────────────────────────────────────────────────────
@@ -314,18 +332,42 @@ export async function initFirebase(
 ): Promise<void> {
   log("Initializing Firebase service account keys...");
 
-  const saEmail = saEmailOverride ?? process.env.FIREBASE_SA_EMAIL;
-  if (!saEmail)
-    return err(
-      `FIREBASE_SA_EMAIL is required for --init firebase (target: ${targetEnv}). Set FIREBASE_SA_EMAIL in your deployment YAML or shell environment.`,
+  const currentEnvs = await client.listEnvVars();
+
+  // Resolve the SA identity (#103): prefer deriving it from an existing
+  // credential (the source of truth — e.g. a scoped/cross-env init where a
+  // sibling target already holds the credential); fall back to a declared
+  // FIREBASE_SA_EMAIL for a genuinely blank init, which is deprecated.
+  // Deterministic discovery for the truly-blank case is gated on #70.
+  const derived = await deriveInitSaIdentity(
+    client,
+    currentEnvs.envs,
+    spec.names,
+  );
+  let saEmail: string;
+  let gcpProject: string | undefined;
+  if (derived) {
+    saEmail = derived.email;
+    gcpProject =
+      gcpProjectOverride ?? process.env.GCLOUD_PROJECT ?? derived.gcpProject;
+    log(`  Derived service account from the existing credential: ${saEmail}`);
+  } else {
+    const declared = saEmailOverride ?? process.env.FIREBASE_SA_EMAIL;
+    if (!declared)
+      return err(
+        `FIREBASE_SA_EMAIL is required for --init firebase (target: ${targetEnv}) when no existing credential is present to derive it from. Set FIREBASE_SA_EMAIL in your deployment YAML or shell environment.`,
+      );
+    warn(
+      "FIREBASE_SA_EMAIL is deprecated — envctl derives the Firebase service account from the credential's clientEmail once a credential exists. It is only needed for a first-ever (blank) init; automatic discovery (#70) will remove even that.",
     );
-  const gcpProject = gcpProjectOverride ?? process.env.GCLOUD_PROJECT;
+    saEmail = declared;
+    gcpProject = gcpProjectOverride ?? process.env.GCLOUD_PROJECT;
+  }
   if (!gcpProject)
     return err(
       `GCLOUD_PROJECT is required for --init firebase (target: ${targetEnv}). Set FIREBASE_PROJECT_ID in your deployment YAML or GCLOUD_PROJECT in your shell environment.`,
     );
 
-  const currentEnvs = await client.listEnvVars();
   for (const vercelEnv of targetEnvs(targetEnv)) {
     // Environment-scoped service (#89): skip targets outside the service's scope.
     if (allowedTargets && !allowedTargets.includes(vercelEnv)) continue;
@@ -350,80 +392,4 @@ export async function initFirebase(
   }
 
   log("Firebase initialization complete.");
-}
-
-// ─── Firebase key invalidation ────────────────────────────────────────────────
-
-export async function invalidateFirebaseKeys(
-  client: DeploymentProvider,
-  fp: FirebasePattern,
-): Promise<void> {
-  log(
-    "Invalidating old Firebase keys (sweeping all non-active user-managed keys)...",
-  );
-
-  const allEnvs = await client.listEnvVars();
-  const activeKeys = new Set<string>();
-  const saPairs = new Map<string, string>(); // email → gcpProject
-  const unsweepable = new Set<string>();
-
-  for (const checkEnv of ["production", "preview", "development"]) {
-    // Read each environment under its own shape, so a mid-migration project is
-    // never misread (which could sweep a still-active key).
-    const envPattern = detectEnvPattern(allEnvs.envs, fp.names, checkEnv);
-    if (!envPattern) continue;
-
-    const kid = await getFirebaseKeyIdForEnv(
-      checkEnv,
-      allEnvs.envs,
-      envPattern,
-      fp.names,
-      client,
-    );
-    const saInfo = await getFirebaseSaForEnv(
-      checkEnv,
-      allEnvs.envs,
-      envPattern,
-      fp.names,
-      client,
-    );
-
-    if (kid) {
-      activeKeys.add(kid);
-      log(`  Active key [${checkEnv}]: ${kid}`);
-    }
-    if (saInfo) {
-      saPairs.set(saInfo.email, saInfo.gcpProject);
-      if (!kid) unsweepable.add(saInfo.email);
-    }
-  }
-
-  for (const [saEmail, gcpProject] of saPairs) {
-    if (unsweepable.has(saEmail)) {
-      warn(
-        `Skipping stray-key sweep for ${saEmail} — not all environments have the key id tracked.`,
-      );
-      warn("  Rotate all environments first, then re-run to sweep old keys.");
-      continue;
-    }
-    log(`  Sweeping SA: ${saEmail}`);
-    const allKeys = listUserManagedGcpKeys(saEmail, gcpProject);
-    let deleted = 0;
-    for (const keyId of allKeys) {
-      if (activeKeys.has(keyId)) continue;
-      log(`  Deleting stray key: ${keyId}`);
-      try {
-        deleteGcpKey(keyId, saEmail, gcpProject);
-        log(`  Deleted: ${keyId}`);
-        deleted++;
-      } catch {
-        warn(`Failed to delete key ${keyId} — remove manually:`);
-        warn(
-          `  gcloud iam service-accounts keys delete ${keyId} --iam-account=${saEmail}`,
-        );
-      }
-    }
-    if (deleted === 0) log(`  No stray keys for ${saEmail}.`);
-    else log(`  Deleted ${deleted} stray key(s) for ${saEmail}.`);
-  }
 }

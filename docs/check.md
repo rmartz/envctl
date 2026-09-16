@@ -56,6 +56,14 @@ lists the live env vars once, and reports any **declared public variable** that
 is not present on its target (drift). If auth or project identity is missing, it
 reports a single skipped-with-reason finding instead of crashing.
 
+It also runs the **Firebase SA-email drift** check
+([`check-firebase.ts`](../src/lib/check-firebase.ts)): a project that still
+declares the deprecated `FIREBASE_SA_EMAIL` is compared against the live
+credential's `clientEmail` — an **error** when the two name different service
+accounts (envctl would mint keys for one SA while the app authenticates as
+another), a deprecation **warning** when it merely duplicates the credential
+(#103).
+
 Scope: `--live` reconciles the **public** variables that
 [`config push`](config-push.md) manages, so declared-vs-live stays apples to
 apples. Secrets — Firebase/Sentry credentials and generated values — are owned
