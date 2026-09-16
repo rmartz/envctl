@@ -75,9 +75,8 @@ requested target:
    - **Firebase** (`rotateFirebase` / `initFirebase`): `gcloud iam service-accounts keys create`
      mints a fresh JSON key for the configured service account, and it is pushed
      to Vercel under the project's declared
-     [credential contract](#firebase-credential-contract) — one
-     `FIREBASE_SERVICE_ACCOUNT` blob (`json`) or the discrete
-     projectId/clientEmail/privateKey/privateKeyId vars (`split`).
+     [credential contract](#firebase-credential-contract) — the discrete
+     projectId/clientEmail/privateKey/privateKeyId vars.
    - **Sentry** (`rotateSentry` / `initSentry`): a new client key is created via
      the Sentry API; the id of the previous key is captured for later deletion.
 2. **Redeploy and wait.** `triggerAndWaitRedeployments`
@@ -120,36 +119,28 @@ scoped:
 ## Firebase credential contract
 
 Which env vars carry the Firebase admin credential is **declared by the project**
-in the [manifest](manifest.md), not assumed by envctl. A `firebase` service may
-declare a credential **shape** (#97) and a field→var-name **map** (#98):
+in the [manifest](manifest.md), not assumed by envctl. The credential is always
+the discrete **`split`** shape — the projectId/clientEmail/privateKey/privateKeyId
+vars the app reads directly. A `firebase` service may map each field to a custom
+var name (#98); the single-blob `json` shape was removed in #102.
 
 ```yaml
 services:
   - provider: firebase
-    # `split` is the default and intended shape — this line is only needed to
-    # opt into the deprecated `json` shape.
     variables: # optional: override the exact var name per field
       privateKey: FB_PRIVATE_KEY
 ```
 
 [`resolveFirebaseCredential`](../src/lib/firebase-credential.ts) turns that
-declaration into a concrete contract — the shape plus the resolved name for every
-field (`projectId` / `clientEmail` / `privateKey` / `privateKeyId` for `split`;
-`serviceAccount` for `json`). `secrets.ts` reads it from the manifest and threads
-it through the engine; **detect, init, and rotate all key off these resolved
-names**, so envctl never provisions a var the app does not read. With **no
-manifest / no declaration**, the contract is the default: the `split` shape with
-the standard `FIREBASE_*` names.
-
-- **`split`** (default) — discrete vars, so an app that reads
-  `cert({ projectId, clientEmail, privateKey })` boots directly from a pulled
-  `.env.local` (`env pull` materializes whatever the declared shape wrote).
-  `privateKeyId` tracks the active key for the sweep.
-- **`json`** (**deprecated**, removal tracked in
-  [#102](https://github.com/rmartz/envctl/issues/102)) — one
-  `FIREBASE_SERVICE_ACCOUNT` var holding the SA-key JSON blob. Retained only so
-  envctl can read and migrate projects still on the old default; declaring it
-  emits a deprecation warning.
+declaration into a concrete contract — the resolved name for every field
+(`projectId` / `clientEmail` / `privateKey` / `privateKeyId`). `secrets.ts` reads
+it from the manifest and threads it through the engine; **detect, init, and
+rotate all key off these resolved names**, so envctl never provisions a var the
+app does not read. With **no manifest / no declaration**, the contract is the
+default: the standard `FIREBASE_*` names. An app that reads
+`cert({ projectId, clientEmail, privateKey })` boots directly from a pulled
+`.env.local` (`env pull` materializes what was written); `privateKeyId` tracks
+the active key for the sweep.
 
 ### Service-account identity (`FIREBASE_SA_EMAIL` is deprecated)
 
@@ -169,15 +160,6 @@ credential rather than a separately-declared var (#103):
 `FIREBASE_SA_EMAIL` is therefore **deprecated, not removed**. A project that
 still declares it and lets it drift from the credential's `clientEmail` is
 flagged by [`envctl check --live`](check.md).
-
-### Migration
-
-When the declared shape differs from what is already in Vercel, `rotate`
-**migrates**: it mints the new key, writes the credential under the declared
-shape (including the split identity vars), then **removes the previous shape's
-now-stale vars** — so a `json`→`split` (or `split`→`json`) move leaves no orphan
-credential var behind. Each environment is read under **its own** current shape,
-so a partially-migrated project is never misread into sweeping a still-active key.
 
 ## Generated secrets
 

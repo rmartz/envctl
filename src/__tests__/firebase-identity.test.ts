@@ -72,37 +72,6 @@ describe("SA identity derivation (#103)", () => {
     );
   });
 
-  it("init derives the SA email from a json-shape sibling credential", async () => {
-    const blob = JSON.stringify({
-      client_email: "json@proj.iam",
-      project_id: "gcp-json",
-      private_key_id: "kid",
-    });
-    const fake = new FakeVercel([
-      {
-        id: "j1",
-        key: "FIREBASE_SERVICE_ACCOUNT",
-        value: blob,
-        target: ["preview"],
-        type: "encrypted",
-      },
-    ]);
-    const createSpy = vi.spyOn(gcp, "createGcpKey");
-    await initFirebase(
-      "production",
-      asClient(fake),
-      tmp,
-      undefined,
-      undefined,
-      resolveFirebaseCredential({ provider: "firebase", credential: "json" }),
-    );
-    expect(createSpy).toHaveBeenCalledWith(
-      expect.any(String),
-      "json@proj.iam",
-      "gcp-json",
-    );
-  });
-
   it("init falls back to a declared FIREBASE_SA_EMAIL on a blank project, with a deprecation warning", async () => {
     const fake = new FakeVercel(); // nothing to derive from
     const createSpy = vi.spyOn(gcp, "createGcpKey");
@@ -140,7 +109,6 @@ describe("SA identity derivation (#103)", () => {
       tmp,
       resolveFirebaseCredential({
         provider: "firebase",
-        credential: "split",
       }),
     );
     expect(createSpy).toHaveBeenCalledWith(

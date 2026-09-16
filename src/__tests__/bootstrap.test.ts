@@ -161,7 +161,7 @@ describe("runBootstrap — idempotency", () => {
       staging: { ...FIREBASE_VARS, ...SENTRY_VARS },
     });
     vi.mocked(VercelClient.prototype.listEnvVars).mockResolvedValue(
-      envRecords(["FIREBASE_SERVICE_ACCOUNT"]),
+      envRecords(["FIREBASE_PRIVATE_KEY"]),
     );
 
     await runBootstrap(makeOpts(dir));
@@ -177,7 +177,7 @@ describe("runBootstrap — idempotency", () => {
       staging: { ...FIREBASE_VARS, ...SENTRY_VARS },
     });
     vi.mocked(VercelClient.prototype.listEnvVars).mockResolvedValue(
-      envRecords(["FIREBASE_SERVICE_ACCOUNT", "SENTRY_DSN"]),
+      envRecords(["FIREBASE_PRIVATE_KEY", "SENTRY_DSN"]),
     );
 
     await runBootstrap(makeOpts(dir));
@@ -195,7 +195,7 @@ describe("runBootstrap — idempotency", () => {
     });
     // Key exists for production only; bootstrap targets preview.
     vi.mocked(VercelClient.prototype.listEnvVars).mockResolvedValue(
-      envRecords(["FIREBASE_SERVICE_ACCOUNT"], ["production"]),
+      envRecords(["FIREBASE_PRIVATE_KEY"], ["production"]),
     );
 
     await runBootstrap(makeOpts(dir, { targetEnv: "preview" }));
@@ -211,7 +211,7 @@ describe("runBootstrap — idempotency", () => {
     });
     // Key exists for production only; bootstrap runs for all targets.
     vi.mocked(VercelClient.prototype.listEnvVars).mockResolvedValue(
-      envRecords(["FIREBASE_SERVICE_ACCOUNT"], ["production"]),
+      envRecords(["FIREBASE_PRIVATE_KEY"], ["production"]),
     );
 
     await runBootstrap(makeOpts(dir));

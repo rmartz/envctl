@@ -23,14 +23,6 @@ export interface ServiceDecl {
   /** Environments this service is scoped to; `undefined` ⇒ every environment. */
   readonly environments?: readonly string[];
   /**
-   * Firebase credential shape — how many vars carry the admin credential (#97).
-   * `split` (the default) = the discrete projectId/clientEmail/privateKey/
-   * privateKeyId vars; `json` = one `FIREBASE_SERVICE_ACCOUNT` blob and is
-   * **deprecated**, retained only to migrate existing projects (removal: #102).
-   * Ignored by other providers.
-   */
-  readonly credential?: "split" | "json";
-  /**
    * Maps each provider credential *field* to the exact env var name the app
    * reads (#98), e.g. `{ privateKey: "FB_PRIVATE_KEY" }`. Fields left out fall
    * back to the provider's default name; an empty/absent map ⇒ all defaults.

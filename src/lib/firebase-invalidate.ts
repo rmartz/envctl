@@ -1,8 +1,8 @@
-import type { FirebasePattern } from "./firebase";
+import type { FirebaseIdentity } from "./firebase";
 import {
-  detectEnvPattern,
   getFirebaseKeyIdForEnv,
   getFirebaseSaForEnv,
+  hasFirebaseCredentialForEnv,
 } from "./firebase-vars";
 import { deleteGcpKey, listUserManagedGcpKeys } from "./gcp";
 import { log, warn } from "./logger";
@@ -14,7 +14,7 @@ import type { DeploymentProvider } from "./providers/deployment";
 // concern.
 export async function invalidateFirebaseKeys(
   client: DeploymentProvider,
-  fp: FirebasePattern,
+  fp: FirebaseIdentity,
 ): Promise<void> {
   log(
     "Invalidating old Firebase keys (sweeping all non-active user-managed keys)...",
@@ -26,22 +26,18 @@ export async function invalidateFirebaseKeys(
   const unsweepable = new Set<string>();
 
   for (const checkEnv of ["production", "preview", "development"]) {
-    // Read each environment under its own shape, so a mid-migration project is
-    // never misread (which could sweep a still-active key).
-    const envPattern = detectEnvPattern(allEnvs.envs, fp.names, checkEnv);
-    if (!envPattern) continue;
+    if (!hasFirebaseCredentialForEnv(allEnvs.envs, fp.names, checkEnv))
+      continue;
 
     const kid = await getFirebaseKeyIdForEnv(
       checkEnv,
       allEnvs.envs,
-      envPattern,
       fp.names,
       client,
     );
     const saInfo = await getFirebaseSaForEnv(
       checkEnv,
       allEnvs.envs,
-      envPattern,
       fp.names,
       client,
     );
