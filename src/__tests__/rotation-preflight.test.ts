@@ -135,7 +135,7 @@ describe("run — provider scoping & fail-fast rotation", () => {
       envs: [
         {
           id: "e1",
-          key: "FIREBASE_SERVICE_ACCOUNT",
+          key: "FIREBASE_PRIVATE_KEY",
           value: "{}",
           target: ["production"],
           type: "encrypted",

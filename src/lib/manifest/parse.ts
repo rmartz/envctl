@@ -74,13 +74,10 @@ function parseServices(raw: unknown): ServiceDecl[] {
     const service: {
       provider: string;
       environments?: string[];
-      credential?: "split" | "json";
       variables?: Record<string, string>;
     } = { provider: item.provider };
     if ("environments" in item)
       service.environments = asStringArray(item.environments);
-    if (item.credential === "split" || item.credential === "json")
-      service.credential = item.credential;
     if ("variables" in item) service.variables = parseStringMap(item.variables);
     out.push(service);
   }

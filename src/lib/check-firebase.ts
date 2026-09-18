@@ -1,7 +1,10 @@
 import { mkError, mkWarning, type Finding } from "./check";
 import { parseDeploymentEnv } from "./environments";
 import { resolveFirebaseCredential } from "./firebase-credential";
-import { detectEnvPattern, getFirebaseSaForEnv } from "./firebase-vars";
+import {
+  getFirebaseSaForEnv,
+  hasFirebaseCredentialForEnv,
+} from "./firebase-vars";
 import { parseManifest } from "./manifest";
 import type { DeploymentProvider } from "./providers/deployment";
 import { envTargetResolver } from "./targets";
@@ -36,12 +39,10 @@ export async function checkFirebaseSaDrift(
     if (seen.has(seenKey)) continue;
     seen.add(seenKey);
 
-    const pattern = detectEnvPattern(liveEnvs, spec.names, target);
-    if (!pattern) continue;
+    if (!hasFirebaseCredentialForEnv(liveEnvs, spec.names, target)) continue;
     const sa = await getFirebaseSaForEnv(
       target,
       liveEnvs,
-      pattern,
       spec.names,
       deployment,
     );

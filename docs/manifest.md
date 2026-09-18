@@ -13,7 +13,7 @@ The typed foundation for envctl's config-manifest epic
 `deployment/manifest.yml` that declares a project's **structure, sources, and
 scopes** env-agnostically, parsed into one resolved model the rest of the epic
 builds on. **`secrets` now reads the manifest** to resolve the Firebase
-[credential contract](secrets-rotation.md#firebase-credential-contract) (shape + field→var-name map). The legacy config path ([env.md](env.md)) is still what
+[credential contract](secrets-rotation.md#firebase-credential-contract) (its field→var-name map). The legacy config path ([env.md](env.md)) is still what
 `config push` and `env pull` run on today.
 
 ## The model
@@ -31,7 +31,6 @@ deployments: # provider-typed sinks; identity is still discovered per-provider
 
 services: # provider-typed sources of secret vars + rotation
   - provider: firebase
-    # credential shape defaults to `split` (#97); `json` is deprecated (#102)
     variables: # map each field → the exact var name the app reads (#98)
       privateKey: FB_PRIVATE_KEY
   - provider: action-tracking
@@ -74,7 +73,7 @@ resolved model:
 - **New format** — when `deployment/manifest.yml` exists, it is parsed into
   `environments`, `deployments` (each with its explicit env→target map),
   `services` (with an optional `environments` scope, and — for `firebase` — an
-  optional `credential` shape and field→var-name `variables` map that form the
+  optional field→var-name `variables` map that forms the
   [credential contract](secrets-rotation.md#firebase-credential-contract)),
   `variables` and `variableGroups` (each variable carrying its `source`
   discriminant), plus the per-env `overlays` read from `deployment/{env}.yml`.
