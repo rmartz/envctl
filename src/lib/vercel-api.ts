@@ -220,17 +220,23 @@ export class VercelClient {
     return data.deployments.filter((d) => d.target === null);
   }
 
+  // Poll until the deployment reaches a terminal state. `READY` → "ready";
+  // `CANCELED` → "canceled" (a benign auto-cancel — Vercel supersedes a redeploy
+  // with a newer build, or the project auto-cancels redundant ones — so the
+  // caller warns rather than fails, #125). Only a genuine `ERROR` (or a timeout)
+  // throws.
   async pollDeploymentStatus(
     deploymentId: string,
     maxAttempts = 60,
     intervalMs = 10_000,
-  ): Promise<void> {
+  ): Promise<"ready" | "canceled"> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const result = await this.request<{ status: string }>(
         `/v13/deployments/${deploymentId}`,
       );
-      if (result.status === "READY") return;
-      if (result.status === "ERROR" || result.status === "CANCELED") {
+      if (result.status === "READY") return "ready";
+      if (result.status === "CANCELED") return "canceled";
+      if (result.status === "ERROR") {
         throw new Error(
           `Deployment ${deploymentId} ended with status: ${result.status}`,
         );
