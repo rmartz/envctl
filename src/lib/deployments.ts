@@ -14,7 +14,10 @@ function targetEnvs(targetEnv: string): string[] {
 // are already saved on the target and take effect on its next successful build.
 // It is a warning, not a failure; only a genuine ERROR/timeout throws (from
 // pollDeploymentStatus).
-async function pollAndReport(client: VercelClient, id: string): Promise<void> {
+async function pollAndReport(
+  client: VercelClient,
+  id: string,
+): Promise<"ready" | "canceled"> {
   log(`  Polling ${id}...`);
   const status = await client.pollDeploymentStatus(id, 60, 10_000);
   if (status === "canceled") {
@@ -24,6 +27,7 @@ async function pollAndReport(client: VercelClient, id: string): Promise<void> {
   } else {
     log(`  ${id} → READY`);
   }
+  return status;
 }
 
 // ─── Redeployment ─────────────────────────────────────────────────────────────
@@ -62,9 +66,11 @@ export async function triggerAndWaitRedeployments(
   if (deploymentIds.length === 0) return;
   log(`Waiting for ${deploymentIds.length} deployment(s) to finish...`);
 
-  for (const id of deploymentIds) await pollAndReport(client, id);
-
-  log("All deployments ready.");
+  let allReady = true;
+  for (const id of deploymentIds) {
+    if ((await pollAndReport(client, id)) === "canceled") allReady = false;
+  }
+  log(allReady ? "All deployments ready." : "Redeployment polling complete.");
 }
 
 export async function refreshPreviewDeployments(
@@ -86,6 +92,13 @@ export async function refreshPreviewDeployments(
   }
 
   log(`Waiting for ${newIds.length} preview deployment(s) to finish...`);
-  for (const id of newIds) await pollAndReport(client, id);
-  log("Preview deployments refreshed.");
+  let allReady = true;
+  for (const id of newIds) {
+    if ((await pollAndReport(client, id)) === "canceled") allReady = false;
+  }
+  log(
+    allReady
+      ? "Preview deployments refreshed."
+      : "Preview redeployment polling complete.",
+  );
 }
