@@ -145,16 +145,19 @@ the active key for the sweep.
 ### Service-account identity (`FIREBASE_SA_EMAIL` is deprecated)
 
 The service account envctl mints/rotates keys for is the **same** identity the
-app reads from the credential's `clientEmail`. So envctl **derives** it from the
-credential rather than a separately-declared var (#103):
+app reads from the credential's `clientEmail`:
 
-- **rotate** reads the SA identity from the live credential and never requires
-  `FIREBASE_SA_EMAIL`.
-- **init** derives it from an existing credential when one is present for the
-  target or a sibling target (a scoped/cross-env init). Only a genuinely blank
-  init — no credential anywhere — still needs a declared `FIREBASE_SA_EMAIL`
-  (back-compat), which now emits a **deprecation warning**; deterministic SA
-  discovery for that case is tracked in
+- **rotate** reads the SA identity from the target's **own** live credential and
+  never requires `FIREBASE_SA_EMAIL` (#103).
+- **init** cold-inits a blank target from **that target's own** declared
+  `FIREBASE_SA_EMAIL` (its `deployment/{env}.yml`, or the shell). It **never**
+  derives the SA from another target's credential or a local `.env.local`
+  (#126): deriving across targets pushed one environment's Firebase project
+  credential to another (e.g. staging → production). As a guard, init **refuses**
+  when the SA email's project disagrees with the target's declared
+  `FIREBASE_PROJECT_ID`. Declaring `FIREBASE_SA_EMAIL` emits a **deprecation
+  warning** — it is the cold-start input only; deterministic SA discovery to
+  remove even that is tracked in
   [#70](https://github.com/rmartz/envctl/issues/70).
 
 `FIREBASE_SA_EMAIL` is therefore **deprecated, not removed**. A project that
