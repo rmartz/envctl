@@ -83,7 +83,12 @@ requested target:
    ([deployments.ts](../src/lib/deployments.ts)) redeploys the latest
    production/preview deployment and polls each until Vercel reports `READY`, so
    the new credential is live on real infrastructure before anything is torn
-   down. The `development` target has no remote deployment and is skipped.
+   down. The `development` target has no remote deployment and is skipped. A
+   `CANCELED` redeploy is treated as **benign, not a failure** (#125) — Vercel
+   auto-cancels a redeploy when a newer build supersedes it; the pushed vars are
+   already saved on the target and apply on its next successful build, so the run
+   warns and continues rather than aborting. Only a genuine `ERROR` (or a poll
+   timeout) fails the run.
 3. **Invalidate the old credential** (unless `--no-invalidate`). Firebase sweeps
    stray user-managed keys for the service account via
    `invalidateFirebaseKeys`; Sentry deletes the captured old key id. With

@@ -8,6 +8,24 @@ function targetEnvs(targetEnv: string): string[] {
   return [targetEnv];
 }
 
+// Poll one redeployment and report its outcome. A `canceled` result is benign
+// (#125): Vercel auto-cancels a redeploy when a newer build supersedes it, so
+// verification simply didn't complete on this deployment — the pushed variables
+// are already saved on the target and take effect on its next successful build.
+// It is a warning, not a failure; only a genuine ERROR/timeout throws (from
+// pollDeploymentStatus).
+async function pollAndReport(client: VercelClient, id: string): Promise<void> {
+  log(`  Polling ${id}...`);
+  const status = await client.pollDeploymentStatus(id, 60, 10_000);
+  if (status === "canceled") {
+    warn(
+      `  ${id} → CANCELED (superseded by a newer build or auto-canceled). The pushed variables are saved on the target and apply on its next successful build; verification did not complete for this deployment.`,
+    );
+  } else {
+    log(`  ${id} → READY`);
+  }
+}
+
 // ─── Redeployment ─────────────────────────────────────────────────────────────
 
 export async function triggerAndWaitRedeployments(
@@ -44,11 +62,7 @@ export async function triggerAndWaitRedeployments(
   if (deploymentIds.length === 0) return;
   log(`Waiting for ${deploymentIds.length} deployment(s) to finish...`);
 
-  for (const id of deploymentIds) {
-    log(`  Polling ${id}...`);
-    await client.pollDeploymentStatus(id, 60, 10_000);
-    log(`  ${id} → READY`);
-  }
+  for (const id of deploymentIds) await pollAndReport(client, id);
 
   log("All deployments ready.");
 }
@@ -72,10 +86,6 @@ export async function refreshPreviewDeployments(
   }
 
   log(`Waiting for ${newIds.length} preview deployment(s) to finish...`);
-  for (const id of newIds) {
-    log(`  Polling ${id}...`);
-    await client.pollDeploymentStatus(id, 60, 10_000);
-    log(`  ${id} → READY`);
-  }
+  for (const id of newIds) await pollAndReport(client, id);
   log("Preview deployments refreshed.");
 }
