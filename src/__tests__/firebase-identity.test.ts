@@ -6,16 +6,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as gcp from "../lib/gcp";
 import { initFirebase, rotateFirebase } from "../lib/firebase";
+import { FatalError } from "../lib/logger";
 import { resolveFirebaseCredential } from "../lib/firebase-credential";
 import type { VercelEnvVar } from "../lib/vercel-api";
 
 import { MINTED, FakeVercel, asClient, valueFor, envVar } from "./fixtures";
 
-// #103 — the SA identity is derived from the credential, not from a separately
-// declared FIREBASE_SA_EMAIL.
-describe("SA identity derivation (#103)", () => {
+// #103 / #126 — how `init` and `rotate` resolve the Firebase service account.
+describe("SA identity resolution (#103 / #126)", () => {
   let tmp: string;
 
+  // A split credential already present on the preview target — a *different*
+  // environment's credential that init must never contaminate another target
+  // with (#126).
   const previewSplit = (email: string, project: string): VercelEnvVar[] =>
     (
       [
@@ -48,32 +51,46 @@ describe("SA identity derivation (#103)", () => {
     vi.restoreAllMocks();
   });
 
-  it("init derives the SA email from a sibling credential's clientEmail", async () => {
+  it("init uses the target's own declared SA and never another target's credential (#126)", async () => {
+    // preview already holds a *staging*-project credential; initializing the
+    // blank production target must mint production's own SA, not derive staging.
     const fake = new FakeVercel(
-      previewSplit("derived@proj.iam", "gcp-derived"),
+      previewSplit(
+        "firebase-adminsdk@trip-staging.iam.gserviceaccount.com",
+        "trip-staging",
+      ),
     );
     const createSpy = vi.spyOn(gcp, "createGcpKey");
     await initFirebase(
       "production",
       asClient(fake),
       tmp,
-      undefined,
-      undefined,
+      "firebase-adminsdk@trip-prod.iam.gserviceaccount.com",
+      "trip-prod",
       resolveFirebaseCredential(),
     );
-    // Minted for the SA derived from preview — no FIREBASE_SA_EMAIL involved.
+    // Minted for PRODUCTION's SA — never the staging credential on preview.
     expect(createSpy).toHaveBeenCalledWith(
       expect.any(String),
-      "derived@proj.iam",
-      "gcp-derived",
+      "firebase-adminsdk@trip-prod.iam.gserviceaccount.com",
+      "trip-prod",
     );
+    expect(createSpy).not.toHaveBeenCalledWith(
+      expect.any(String),
+      "firebase-adminsdk@trip-staging.iam.gserviceaccount.com",
+      expect.anything(),
+    );
+    // production gets production's identity; preview's credential is untouched.
     expect(valueFor(fake, "FIREBASE_CLIENT_EMAIL", "production")).toBe(
-      "derived@proj.iam",
+      "firebase-adminsdk@trip-prod.iam.gserviceaccount.com",
+    );
+    expect(valueFor(fake, "FIREBASE_CLIENT_EMAIL", "preview")).toBe(
+      "firebase-adminsdk@trip-staging.iam.gserviceaccount.com",
     );
   });
 
-  it("init falls back to a declared FIREBASE_SA_EMAIL on a blank project, with a deprecation warning", async () => {
-    const fake = new FakeVercel(); // nothing to derive from
+  it("init cold-inits from the declared FIREBASE_SA_EMAIL, with a deprecation warning", async () => {
+    const fake = new FakeVercel();
     const createSpy = vi.spyOn(gcp, "createGcpKey");
     const warnSpy = vi.spyOn(console, "error");
     await initFirebase(
@@ -92,6 +109,23 @@ describe("SA identity derivation (#103)", () => {
     expect(warnSpy.mock.calls.map((c) => String(c[0])).join("\n")).toMatch(
       /FIREBASE_SA_EMAIL.*deprecated/i,
     );
+  });
+
+  it("init refuses when the SA's project disagrees with the target's declared project (#126)", async () => {
+    const fake = new FakeVercel();
+    const createSpy = vi.spyOn(gcp, "createGcpKey");
+    await expect(
+      initFirebase(
+        "production",
+        asClient(fake),
+        tmp,
+        "firebase-adminsdk@trip-staging.iam.gserviceaccount.com",
+        "trip-prod",
+        resolveFirebaseCredential(),
+      ),
+    ).rejects.toBeInstanceOf(FatalError);
+    // Nothing minted — refused before any key was created.
+    expect(createSpy).not.toHaveBeenCalled();
   });
 
   it("rotate mints for the credential's SA, ignoring a stale FIREBASE_SA_EMAIL", async () => {

@@ -104,21 +104,12 @@ async function detectSaIdentity(
   );
 }
 
-// Derive the SA identity from an existing credential for `init` — the
-// steady-state source of truth (#103). Scans the targets and returns the first
-// resolvable SA (mirroring rotate's preview→dev fallback), or null when no
-// credential exists yet (a genuinely blank init).
-async function deriveInitSaIdentity(
-  client: DeploymentProvider,
-  envs: VercelEnvVar[],
-  names: FirebaseCredentialSpec["names"],
-): Promise<FirebaseSaInfo | null> {
-  for (const env of ["production", "preview", "development"]) {
-    if (!hasFirebaseCredentialForEnv(envs, names, env)) continue;
-    const sa = await getFirebaseSaForEnv(env, envs, names, client);
-    if (sa?.email) return sa;
-  }
-  return null;
+// The GCP project a service-account email belongs to:
+// `firebase-adminsdk-…@<project>.iam.gserviceaccount.com` → `<project>`.
+// Returns undefined for an unrecognized shape (the caller's guard is
+// best-effort — it only fires when the project is unambiguously encoded).
+function gcpProjectFromSaEmail(saEmail: string): string | undefined {
+  return /@([^.@]+)\.iam\.gserviceaccount\.com$/.exec(saEmail)?.[1];
 }
 
 // ─── Firebase rotation ────────────────────────────────────────────────────────
@@ -253,39 +244,39 @@ export async function initFirebase(
 
   const currentEnvs = await client.listEnvVars();
 
-  // Resolve the SA identity (#103): prefer deriving it from an existing
-  // credential (the source of truth — e.g. a scoped/cross-env init where a
-  // sibling target already holds the credential); fall back to a declared
-  // FIREBASE_SA_EMAIL for a genuinely blank init, which is deprecated.
-  // Deterministic discovery for the truly-blank case is gated on #70.
-  const derived = await deriveInitSaIdentity(
-    client,
-    currentEnvs.envs,
-    spec.names,
-  );
-  let saEmail: string;
-  let gcpProject: string | undefined;
-  if (derived) {
-    saEmail = derived.email;
-    gcpProject =
-      gcpProjectOverride ?? process.env.GCLOUD_PROJECT ?? derived.gcpProject;
-    log(`  Derived service account from the existing credential: ${saEmail}`);
-  } else {
-    const declared = saEmailOverride ?? process.env.FIREBASE_SA_EMAIL;
-    if (!declared)
-      return err(
-        `FIREBASE_SA_EMAIL is required for --init firebase (target: ${targetEnv}) when no existing credential is present to derive it from. Set FIREBASE_SA_EMAIL in your deployment YAML or shell environment.`,
-      );
-    warn(
-      "FIREBASE_SA_EMAIL is deprecated — envctl derives the Firebase service account from the credential's clientEmail once a credential exists. It is only needed for a first-ever (blank) init; automatic discovery (#70) will remove even that.",
+  // Resolve the SA identity strictly from THIS target's own declared identity
+  // (#126). `init` must never derive the SA from another target's credential (or
+  // a local `.env.local`): a blank production target must be minted from
+  // production's own `FIREBASE_SA_EMAIL`, not from whatever credential happens to
+  // be in scope — cross-deriving pushed staging creds to production. (The run
+  // guard already blocks init when the target itself has a credential, so there
+  // is nothing on the target to derive from anyway; `rotate` is where an
+  // existing credential's identity is reused.) FIREBASE_SA_EMAIL is the
+  // deprecated cold-start input; automatic discovery is gated on #70.
+  const saEmail = saEmailOverride ?? process.env.FIREBASE_SA_EMAIL;
+  if (!saEmail)
+    return err(
+      `FIREBASE_SA_EMAIL is required for --init firebase (target: ${targetEnv}). Set FIREBASE_SA_EMAIL in the ${targetEnv} deployment YAML or your shell environment.`,
     );
-    saEmail = declared;
-    gcpProject = gcpProjectOverride ?? process.env.GCLOUD_PROJECT;
-  }
+  const gcpProject = gcpProjectOverride ?? process.env.GCLOUD_PROJECT;
   if (!gcpProject)
     return err(
-      `GCLOUD_PROJECT is required for --init firebase (target: ${targetEnv}). Set FIREBASE_PROJECT_ID in your deployment YAML or GCLOUD_PROJECT in your shell environment.`,
+      `GCLOUD_PROJECT is required for --init firebase (target: ${targetEnv}). Set FIREBASE_PROJECT_ID in the ${targetEnv} deployment YAML or GCLOUD_PROJECT in your shell environment.`,
     );
+
+  // Refuse a cross-project mixup (#126): the SA's own project (encoded in its
+  // email) must match the target's declared GCP project. A mismatch means the
+  // wrong SA email is declared for this environment — never push a foreign
+  // project's credential to the target.
+  const saProject = gcpProjectFromSaEmail(saEmail);
+  if (saProject && saProject !== gcpProject)
+    return err(
+      `Refusing to init firebase for '${targetEnv}': FIREBASE_SA_EMAIL (${saEmail}) belongs to GCP project '${saProject}', but the target's project is '${gcpProject}'. They must match — check the ${targetEnv} deployment YAML (FIREBASE_SA_EMAIL vs FIREBASE_PROJECT_ID).`,
+    );
+
+  warn(
+    "FIREBASE_SA_EMAIL is deprecated as a cold-start input — it is only needed for a first-ever (blank) init; `rotate` derives the service account from the target's own credential, and automatic discovery (#70) will remove even the init need.",
+  );
 
   for (const vercelEnv of targetEnvs(targetEnv)) {
     // Environment-scoped service (#89): skip targets outside the service's scope.
