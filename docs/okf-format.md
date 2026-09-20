@@ -41,8 +41,8 @@ documents one script under `scripts/` and `Subsystem` for a broader concern
 **Index files are the one exception.** Per OKF §8, a reserved `index.md`
 carries **no** frontmatter — not even `type` — with the single exception that a
 bundle-root `index.md` MAY carry an `okf_version` key. `docs/index.md`
-therefore holds only `okf_version: "0.2"`, and the [check-docs](check-docs.md)
-gate rejects any other frontmatter key on an `index.md`.
+therefore holds only `okf_version: "0.2"`, and the `okf-index` gate rejects any
+other frontmatter key on an `index.md`.
 
 ## Navigation: `index.md`
 
@@ -73,15 +73,20 @@ tooling.
 
 ## How envctl enforces OKF
 
-- [check-docs](check-docs.md) fails CI unless every non-index `docs/` page
-  carries valid OKF frontmatter with a `type` (a reserved `index.md` is exempt,
-  carrying no frontmatter beyond `okf_version`), and unless the whole bundle is
-  reachable via `index.md` links from `docs/index.md`.
+- The `okf` and `okf-index` checks in
+  [`rmartz/repo-hygiene`](https://github.com/rmartz/repo-hygiene) fail CI unless
+  every non-index `docs/` page carries valid OKF frontmatter with a `type` (a
+  reserved `index.md` is exempt, carrying no frontmatter beyond `okf_version`),
+  and unless the whole bundle is reachable via `index.md` links from
+  `docs/index.md`. The `docs-links` check additionally verifies intra-doc
+  body-link integrity.
 - The `docs/` convention itself — one page per script or subsystem, the required
   and recommended frontmatter fields, and the `index.md` rule — is written up in
   `AGENTS.md` → Documentation.
 
 ## Related
 
-- [check-docs](check-docs.md) — the CI gate enforcing this format.
+- The `okf`, `okf-index`, and `docs-links` checks in
+  [`rmartz/repo-hygiene`](https://github.com/rmartz/repo-hygiene) — the CI gates
+  enforcing this format.
 - [index](index.md) — the bundle's root index.

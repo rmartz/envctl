@@ -19,11 +19,14 @@ pnpm format                 # Prettier --write
 pnpm run format:check       # Prettier --check
 pnpm run test:ts            # Run the Vitest suite
 pnpm run check:file-length  # File-length ratchet
-pnpm run check:package-pins # Verify all package.json pins are full major.minor.patch
-pnpm run check:action-pins  # Verify GitHub Actions are SHA-pinned with version comments
-pnpm run check:agents-md    # Verify every AGENTS.md pairs with a bare `@AGENTS.md` CLAUDE.md
-pnpm run check:docs         # Verify docs/ OKF frontmatter and index.md navigability
 ```
+
+The remaining hygiene checks — action pins, package pins, AGENTS.md/CLAUDE.md
+pairing, OKF docs frontmatter + index navigability + link integrity, and
+merge-conflict markers — run in CI via [`rmartz/repo-hygiene-action`](https://github.com/rmartz/repo-hygiene-action)
+(see `.github/workflows/repo-hygiene.yml`, configured in `.repo-hygiene.yml`),
+rather than as per-repo scripts. Updates to the check logic arrive via Dependabot
+bumps of the pinned action.
 
 ## Agent Directive Files
 
@@ -44,8 +47,9 @@ place to edit and no duplicate copy to fall out of sync.
   The `@AGENTS.md` import keeps `CLAUDE.md` valid for Claude Code while leaving
   `AGENTS.md` as the one editable source.
 
-  Enforced by `scripts/check-agents-md.mjs` and the `Agent directive files` CI
-  workflow.
+  Enforced by the `md-pairing` check in
+  [`rmartz/repo-hygiene`](https://github.com/rmartz/repo-hygiene) (run via
+  `.github/workflows/repo-hygiene.yml`).
 
 ## TypeScript
 
@@ -116,7 +120,9 @@ modules is still fine.
   `engines` field (minimum-version constraints like `node: ">=18"`) is exempt —
   it is a compatibility floor, not a dependency pin.
 
-  Enforced by `scripts/check-package-pins.mjs` and the `Package pins` CI workflow.
+  Enforced by the `package-pins` check in
+  [`rmartz/repo-hygiene`](https://github.com/rmartz/repo-hygiene) (run via
+  `.github/workflows/repo-hygiene.yml`).
 
 ## GitHub Actions
 
@@ -128,16 +134,17 @@ modules is still fine.
   a malicious commit); the version comment lets Dependabot keep the SHA current,
   bumping both together. Dependabot is unreliable on partial version comments,
   so the full three-part version is required. Local composite actions
-  (`./.github/actions/…`) are exempt. Enforced by
-  `scripts/check-action-pins.mjs` and the `Action pins` CI workflow.
+  (`./.github/actions/…`) are exempt. Enforced by the `action-pins` check in
+  [`rmartz/repo-hygiene`](https://github.com/rmartz/repo-hygiene) (run via
+  `.github/workflows/repo-hygiene.yml`).
 
 ## Documentation
 
 - Keep documentation in sync with the code — outdated docs are worse than none.
 - Reference pages for scripts and subsystems live under `docs/`, in Google's Open
   Knowledge Format (OKF): one markdown file per script or subsystem, each with
-  YAML frontmatter (`type` required — `Script` / `Subsystem`; `title`,
-  `description`, `resource`, `tags` recommended).
+  YAML frontmatter (`type` required — `Script` / `Subsystem` / `Runbook`;
+  `title`, `description`, `resource`, `tags` recommended).
 - **`docs/index.md` is the bundle index** (OKF's canonical index file). Per OKF
   §8 a reserved `index.md` carries **no** frontmatter — not even `type` — save an
   optional bundle-root `okf_version` key (`docs/index.md` holds only
@@ -151,5 +158,9 @@ modules is still fine.
   add or update its `docs/` page **and its `index.md` entry** in the same PR.
   Existing undocumented code is tech debt to migrate over time — this does not
   require unrelated backfill.
-- Enforced by `scripts/check-docs.mjs` and the `Docs` CI workflow (OKF
-  frontmatter present on every page; full `index.md` navigability).
+- Enforced by the `okf`, `okf-index`, and `docs-links` checks in
+  [`rmartz/repo-hygiene`](https://github.com/rmartz/repo-hygiene) (run via
+  `.github/workflows/repo-hygiene.yml`): OKF frontmatter on every page, full
+  `index.md` navigability, and intra-doc body-link integrity. `okf` and
+  `docs-links` are seeded at `warn` during adoption and flip to `error` in a
+  follow-up once the remaining findings are fixed.

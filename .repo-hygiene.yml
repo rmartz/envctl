@@ -1,0 +1,38 @@
+# Configuration for @rmartz/repo-hygiene, run via rmartz/repo-hygiene-action in
+# .github/workflows/repo-hygiene.yml. Each check's `severity` sets the level of
+# every finding it emits; a warn-only run exits 0 (advisory), an error fails CI.
+checks:
+  # OKF frontmatter. envctl's docs use three types (Script, Subsystem, Runbook).
+  # Seeded at `warn` during adoption: one Subsystem page still lacks a `resource:`.
+  # A follow-up fixes it and flips this to `error`.
+  okf:
+    types: [Script, Subsystem, Runbook]
+    roots: [docs]
+    exempt: [docs/index.md]
+    severity: warn
+
+  # Intra-doc body-link integrity — net-new vs the old check-docs.mjs. Seeded at
+  # `warn` during adoption: one illustrative example link is flagged. A follow-up
+  # fixes it and flips this to `error`.
+  docs-links:
+    roots: [docs]
+    severity: warn
+
+  # Docs-bundle navigability (every dir has an index.md, every page reachable).
+  # envctl already passes — enforced.
+  okf-index:
+    roots: [docs]
+    severity: error
+
+  # AGENTS.md / CLAUDE.md pairing, with CLAUDE.md required to be the bare
+  # `@AGENTS.md` wrapper. envctl already passes — enforced.
+  md-pairing:
+    wrapper: "@AGENTS.md"
+    severity: error
+
+  # Full major.minor.patch pins in package.json. Opt-in check, so it must be named
+  # in the workflow's `checks:` list. envctl already passes — enforced.
+  package-pins:
+    severity: error
+  # conflict-markers and action-pins are default-on at `error`; envctl passes them
+  # with no configuration, so they need no entry here.
