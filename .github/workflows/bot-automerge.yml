@@ -1,0 +1,20 @@
+name: bot-automerge
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: read
+
+jobs:
+  bot-automerge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: rmartz/bot-automerge-action@7acd74697ddcce0319ca0d6733681dc76d4e60d6 # v1.0.0
+        with:
+          pr: ${{ github.event.pull_request.number }}
