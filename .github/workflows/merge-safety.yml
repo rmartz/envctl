@@ -1,0 +1,26 @@
+name: merge-safety
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to evaluate
+        required: true
+
+permissions:
+  checks: write
+  pull-requests: write
+  contents: read
+  actions: write
+  packages: read
+
+jobs:
+  merge-safety:
+    uses: rmartz/merge-safety/.github/workflows/merge-safety.yml@db145fb8c20164185eb9e1a1c237dc4d9085c69f # v0.1.0
+    with:
+      pr: ${{ inputs.pr }}
+    secrets: inherit
