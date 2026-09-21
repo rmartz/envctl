@@ -47,11 +47,10 @@ not yet documented here; pages are added as those modules are next touched.
 
 ## Scripts
 
-- [check-agents-md](check-agents-md.md) — enforces the AGENTS.md / CLAUDE.md
-  pairing convention (bare `@AGENTS.md` wrapper).
-- [check-docs](check-docs.md) — enforces OKF frontmatter and `index.md`
-  navigability across this `docs/` bundle.
-
-Other CI gate scripts under `scripts/` (`check-file-length.mjs`,
-`check-package-pins.mjs`, `check-action-pins.mjs`) are not yet documented here;
-pages are added as those scripts are next touched.
+The repo-hygiene CI gates (AGENTS.md/CLAUDE.md pairing, OKF frontmatter +
+`index.md` navigability + link integrity, action pins, package pins, conflict
+markers) now run via [`rmartz/repo-hygiene-action`](https://github.com/rmartz/repo-hygiene-action)
+(see `.github/workflows/repo-hygiene.yml`, configured in `.repo-hygiene.yml`)
+rather than local scripts. The sole remaining local gate script,
+`scripts/check-file-length.mjs` (the file-length ratchet), is not yet documented
+here; a page is added when it is next touched.

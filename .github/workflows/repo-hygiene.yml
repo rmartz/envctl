@@ -1,0 +1,25 @@
+name: repo-hygiene
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    name: Repo hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: read # read the public @rmartz/repo-hygiene package from GitHub Packages
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: rmartz/repo-hygiene-action@66118369122afacf29241703137f60cbfa0315f0 # v1.0.0
+        with:
+          # Explicit list = deterministic coverage and lets us opt into package-pins.
+          checks: conflict-markers action-pins docs-links md-pairing okf okf-index package-pins
+          config: .repo-hygiene.yml
