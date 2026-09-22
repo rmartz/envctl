@@ -64,6 +64,15 @@ accounts (envctl would mint keys for one SA while the app authenticates as
 another), a deprecation **warning** when it merely duplicates the credential
 (#103).
 
+It also runs the **Firebase project-id drift** check
+([`check-firebase.ts`](../src/lib/check-firebase.ts)): the committed
+`FIREBASE_PROJECT_ID` (the GCP project envctl mints keys in) is compared against
+the live credential's `projectId` — an **error** when they disagree, because
+envctl would mint keys in one GCP project while the app authenticates against
+another (#121). Unlike `FIREBASE_SA_EMAIL`, `FIREBASE_PROJECT_ID` is **not**
+deprecated: init resolves the project from the target's own declared value
+(#127), so a matching committed value is required, not flagged — only drift is.
+
 Scope: `--live` reconciles the **public** variables that
 [`config push`](config-push.md) manages, so declared-vs-live stays apples to
 apples. Secrets — Firebase/Sentry credentials and generated values — are owned

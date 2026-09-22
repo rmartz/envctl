@@ -4,7 +4,10 @@ import * as path from "path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { checkFirebaseSaDrift } from "../lib/check-firebase";
+import {
+  checkFirebaseProjectDrift,
+  checkFirebaseSaDrift,
+} from "../lib/check-firebase";
 import type { DeploymentProvider } from "../lib/providers/deployment";
 import type { VercelEnvVar } from "../lib/vercel-api";
 
@@ -20,11 +23,15 @@ const fakeDeployment = (envs: VercelEnvVar[]): DeploymentProvider =>
     },
   }) as unknown as DeploymentProvider;
 
-// A live split credential on the production target with the given clientEmail.
-const liveSplit = (clientEmail: string): VercelEnvVar[] =>
+// A live split credential on the production target with the given clientEmail
+// and (for project-drift tests) projectId.
+const liveSplit = (
+  clientEmail: string,
+  projectId = "gcp-proj",
+): VercelEnvVar[] =>
   (
     [
-      ["FIREBASE_PROJECT_ID", "gcp-proj"],
+      ["FIREBASE_PROJECT_ID", projectId],
       ["FIREBASE_CLIENT_EMAIL", clientEmail],
       ["FIREBASE_PRIVATE_KEY", "pk"],
       ["FIREBASE_PRIVATE_KEY_ID", "kid"],
@@ -62,6 +69,12 @@ const declareSaEmail = (email: string): void =>
   fs.writeFileSync(
     path.join(configDir, "production.yml"),
     `FIREBASE_SA_EMAIL: "${email}"\n`,
+  );
+
+const declareProjectId = (id: string): void =>
+  fs.writeFileSync(
+    path.join(configDir, "production.yml"),
+    `FIREBASE_PROJECT_ID: "${id}"\n`,
   );
 
 describe("checkFirebaseSaDrift (#103)", () => {
@@ -102,6 +115,43 @@ describe("checkFirebaseSaDrift (#103)", () => {
     declareSaEmail("declared@x.iam");
     expect(
       await checkFirebaseSaDrift(fakeDeployment([]), configDir, []),
+    ).toEqual([]);
+  });
+});
+
+describe("checkFirebaseProjectDrift (#121)", () => {
+  it("errors when FIREBASE_PROJECT_ID disagrees with the credential's projectId", async () => {
+    declareProjectId("committed-proj");
+    const live = liveSplit("sa@x.iam", "live-proj");
+    const found = await checkFirebaseProjectDrift(
+      fakeDeployment(live),
+      configDir,
+      live,
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].severity).toBe("error");
+    expect(found[0].message).toMatch(/committed-proj.*live-proj/);
+  });
+
+  it("is silent when FIREBASE_PROJECT_ID matches the credential's projectId (it is required, not deprecated)", async () => {
+    declareProjectId("same-proj");
+    const live = liveSplit("sa@x.iam", "same-proj");
+    expect(
+      await checkFirebaseProjectDrift(fakeDeployment(live), configDir, live),
+    ).toEqual([]);
+  });
+
+  it("is silent when no FIREBASE_PROJECT_ID is declared", async () => {
+    const live = liveSplit("sa@x.iam", "live-proj");
+    expect(
+      await checkFirebaseProjectDrift(fakeDeployment(live), configDir, live),
+    ).toEqual([]);
+  });
+
+  it("is silent when no live credential exists to compare against", async () => {
+    declareProjectId("committed-proj");
+    expect(
+      await checkFirebaseProjectDrift(fakeDeployment([]), configDir, []),
     ).toEqual([]);
   });
 });
