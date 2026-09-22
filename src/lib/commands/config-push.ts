@@ -71,7 +71,7 @@ async function pushVars(
   for (const key of Object.keys(vars)) {
     const existing = deployment.findEnvVar(allEnvs.envs, key, target);
     if (existing) {
-      await deployment.updateEnvVar(existing.id, vars[key]);
+      await deployment.updateEnvVar(existing, vars[key]);
       log(`  Updated : ${key}`);
       updated++;
     } else {

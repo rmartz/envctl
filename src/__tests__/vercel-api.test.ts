@@ -1,10 +1,37 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { VercelClient } from "../lib/vercel-api";
+import { VercelClient, type VercelEnvVar } from "../lib/vercel-api";
 
 const client = (): VercelClient => new VercelClient("tok", "prj");
 
 afterEach(() => vi.restoreAllMocks());
+
+// #124 — a value-only PATCH was a silent no-op against Vercel; the update must
+// send the existing record's full descriptor (key/type/target) alongside the
+// new value so the change actually persists, mirroring the working create path.
+describe("updateEnvVar (#124)", () => {
+  it("PATCHes the full record descriptor with the new value", async () => {
+    const req = vi
+      .spyOn(VercelClient.prototype, "request")
+      .mockResolvedValue(undefined);
+    const existing: VercelEnvVar = {
+      id: "env_abc",
+      key: "NEXT_PUBLIC_FIREBASE_API_KEY",
+      value: "",
+      target: ["preview"],
+      type: "plain",
+    };
+
+    await client().updateEnvVar(existing, "AIzaNEW");
+
+    expect(req).toHaveBeenCalledWith("/v9/projects/prj/env/env_abc", "PATCH", {
+      key: "NEXT_PUBLIC_FIREBASE_API_KEY",
+      type: "plain",
+      target: ["preview"],
+      value: "AIzaNEW",
+    });
+  });
+});
 
 // #125 — a benign auto-cancel (Vercel supersedes a redeploy) must not be
 // treated as a hard failure.
