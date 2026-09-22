@@ -250,4 +250,17 @@ describe("runSecrets — early failures", () => {
     ).rejects.toThrow(FatalError);
     expect(runSpy).not.toHaveBeenCalled();
   });
+
+  // #143: init (post-#127) requires the target's own FIREBASE_SA_EMAIL, so
+  // validateInitConfig must flag its absence up front — not let it slip through
+  // to a mid-run error — even when FIREBASE_PROJECT_ID is present.
+  it("errors when FIREBASE_SA_EMAIL is missing even though FIREBASE_PROJECT_ID is present", async () => {
+    const dir = makeDeploymentDir(tmpDir, ["production"], {
+      production: { FIREBASE_PROJECT_ID: "gcp-proj" },
+    });
+    await expect(
+      runSecrets(makeOpts(dir, { init: "firebase" })),
+    ).rejects.toThrow(FatalError);
+    expect(runSpy).not.toHaveBeenCalled();
+  });
 });

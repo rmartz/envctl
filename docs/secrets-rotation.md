@@ -49,11 +49,11 @@ but differ in how they decide what to act on and what they do with the old key:
 `init`'s service auto-detection lives in
 [`secrets-plan.ts`](../src/lib/commands/secrets-plan.ts) (`resolveAutoInit`),
 which also validates up front that every config value the chosen service needs
-(`FIREBASE_PROJECT_ID`, `SENTRY_ORG`, `SENTRY_PROJECT`) is present — in the
-deployment YAML or the shell — and reports **every** gap at once.
-`FIREBASE_SA_EMAIL` is **not** required here anymore: init derives the service
-account from the credential, falling back to a declared value only for a blank
-init (see [SA identity](#service-account-identity-firebase_sa_email-is-deprecated)).
+(`FIREBASE_SA_EMAIL`, `FIREBASE_PROJECT_ID`, `SENTRY_ORG`, `SENTRY_PROJECT`) is
+present — in the deployment YAML or the shell — and reports **every** gap at
+once. `FIREBASE_SA_EMAIL` is validated here because init resolves the service
+account strictly from the target's **own** declared value (#127; #143) — see
+[SA identity](#service-account-identity-firebase_sa_email-is-deprecated).
 
 ## The atomic flow
 
