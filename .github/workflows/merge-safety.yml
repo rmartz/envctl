@@ -1,10 +1,12 @@
 name: merge-safety
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   push:
     branches: [main]
+  check_suite:
+    types: [completed]
   workflow_dispatch:
     inputs:
       pr:
@@ -20,7 +22,7 @@ permissions:
 
 jobs:
   merge-safety:
-    uses: rmartz/merge-safety/.github/workflows/merge-safety.yml@db145fb8c20164185eb9e1a1c237dc4d9085c69f # v0.1.0
+    uses: rmartz/merge-safety/.github/workflows/merge-safety.yml@74a4e7621bbfaf3b12f8bf015533e1ffc3475a2b # v0.3.0
     with:
       pr: ${{ inputs.pr }}
     secrets: inherit
