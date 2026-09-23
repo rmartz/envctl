@@ -98,10 +98,15 @@ function firebaseConfigMissing(
 ): string[] {
   const envVars = parseDeploymentEnv(deploymentDir, envName);
   const missing: string[] = [];
-  // FIREBASE_SA_EMAIL is no longer statically required (#103): init derives the
-  // SA from an existing credential when present, and the engine errors with an
-  // actionable message for a genuinely blank init. FIREBASE_PROJECT_ID stays a
-  // static requirement (projectId deduplication is a separate follow-up).
+  // Both identity vars are statically required (#143): #127 made init resolve the
+  // service account strictly from the target's own declared FIREBASE_SA_EMAIL —
+  // never a sibling credential — so its absence must be reported up front here,
+  // alongside FIREBASE_PROJECT_ID, rather than surfacing as a mid-run error.
+  // (Automatic SA discovery that would retire this input is gated on #70.)
+  if (!envVars.FIREBASE_SA_EMAIL && !process.env.FIREBASE_SA_EMAIL)
+    missing.push(
+      `FIREBASE_SA_EMAIL [${label}]: add to ${envName}.yml or export in shell`,
+    );
   if (!envVars.FIREBASE_PROJECT_ID && !process.env.GCLOUD_PROJECT)
     missing.push(
       `FIREBASE_PROJECT_ID [${label}]: add to ${envName}.yml or export GCLOUD_PROJECT in shell`,
