@@ -101,7 +101,7 @@ describe("runPush — API writes", () => {
       dryRun: false,
     });
 
-    expect(mockUpdate).toHaveBeenCalledWith("env_existing", "new_value");
+    expect(mockUpdate).toHaveBeenCalledWith(existing, "new_value");
   });
 
   it("leaves untouched vars alone (only pushes config keys)", async () => {

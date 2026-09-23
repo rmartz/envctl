@@ -35,7 +35,7 @@ export interface DeploymentProvider {
     target: string,
     type?: EnvVarType,
   ): Promise<VercelEnvVar>;
-  updateEnvVar(id: string, value: string): Promise<void>;
+  updateEnvVar(existing: VercelEnvVar, value: string): Promise<void>;
   setEnvForTarget(
     key: string,
     value: string,
@@ -95,8 +95,8 @@ class VercelDeploymentProvider implements DeploymentProvider {
   ): Promise<VercelEnvVar> {
     return this.client.createEnvVar(key, value, target, type);
   }
-  updateEnvVar(id: string, value: string): Promise<void> {
-    return this.client.updateEnvVar(id, value);
+  updateEnvVar(existing: VercelEnvVar, value: string): Promise<void> {
+    return this.client.updateEnvVar(existing, value);
   }
   setEnvForTarget(
     key: string,

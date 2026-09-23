@@ -99,10 +99,22 @@ export class VercelClient {
     );
   }
 
-  async updateEnvVar(envId: string, value: string): Promise<void> {
-    await this.request(`/v9/projects/${this.projectId}/env/${envId}`, "PATCH", {
-      value,
-    });
+  // Edit an existing env var in place. Vercel's PATCH silently ignores a
+  // value-only body (leaving the var stale — #124); the reliable edit request
+  // carries the record's full descriptor, so we resend key/type/target from the
+  // existing record alongside the new value. Preserving `target` also keeps a
+  // multi-target record's other environments intact.
+  async updateEnvVar(existing: VercelEnvVar, value: string): Promise<void> {
+    await this.request(
+      `/v9/projects/${this.projectId}/env/${existing.id}`,
+      "PATCH",
+      {
+        key: existing.key,
+        type: existing.type,
+        target: existing.target,
+        value,
+      },
+    );
   }
 
   async deleteEnvVar(envId: string): Promise<void> {

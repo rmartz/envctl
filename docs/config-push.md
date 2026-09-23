@@ -24,7 +24,9 @@ environment's values from `<deployment-dir>/{env}.yml` (see the
 [deployment-config model](env.md#deployment-configuration-model)), then, for
 each resolved Vercel target, **upserts** every variable:
 
-- an existing variable is **updated in place** (`updateEnvVar`, PATCH);
+- an existing variable is **updated in place** (`updateEnvVar`, PATCH) — the
+  edit resends the record's full descriptor (`key`/`type`/`target`) with the new
+  value, because a value-only PATCH is silently dropped by Vercel (#124);
 - a missing one is **created** as a `plain`-type record (`createEnvVar`, POST);
 - a variable **not** present in the config files is left **untouched** — push
   never deletes.
