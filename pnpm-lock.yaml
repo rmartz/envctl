@@ -18,6 +18,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.10.0)
+      '@semantic-release/release-notes-generator':
+        specifier: ^14.1.1
+        version: 14.1.1(semantic-release@25.0.9(typescript@6.0.3))
       '@types/js-yaml':
         specifier: ^4.0.9
         version: 4.0.9

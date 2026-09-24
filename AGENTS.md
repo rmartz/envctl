@@ -19,6 +19,7 @@ pnpm format                 # Prettier --write
 pnpm run format:check       # Prettier --check
 pnpm run test:ts            # Run the Vitest suite
 pnpm run check:file-length  # File-length ratchet
+pnpm run verify:release-notes  # Prove the changelog toolchain renders release notes
 ```
 
 The remaining hygiene checks — action pins, package pins, AGENTS.md/CLAUDE.md

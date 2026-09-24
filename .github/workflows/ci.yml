@@ -64,3 +64,19 @@ jobs:
           fetch-depth: 0 # the file-length ratchet needs the merge base
       - uses: ./.github/actions/setup
       - run: pnpm run check:file-length -- --base origin/${{ github.base_ref || 'main' }}
+
+  release-notes-render:
+    name: Release notes render
+    # Prove the installed changelog preset + conventional-changelog-writer can
+    # render release notes, so an incompatible pairing (e.g. a Dependabot major of
+    # conventional-changelog-conventionalcommits) fails the PR instead of the
+    # post-merge Release run. Renders through the real release-notes-generator
+    # with the .releaserc.json options — no token, no network — so it works on
+    # Dependabot PRs too, unlike `semantic-release --dry-run`. See
+    # scripts/verify-changelog-render.mjs.
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - run: pnpm run verify:release-notes
