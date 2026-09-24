@@ -28,7 +28,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:ts": "vitest run",
-    "check:file-length": "node scripts/check-file-length.mjs"
+    "check:file-length": "node scripts/check-file-length.mjs",
+    "verify:release-notes": "node scripts/verify-changelog-render.mjs"
   },
   "dependencies": {
     "js-yaml": "^5.4.1",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@semantic-release/release-notes-generator": "^14.1.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.5.1",
     "@vitest/coverage-v8": "^5.0.0",
