@@ -6,20 +6,19 @@ See the [Vision](https://github.com/rmartz/envctl/issues/1) for the design and d
 
 ## Install
 
-envctl is published to GitHub Packages as `@rmartz/envctl` and installed as a personal global CLI — never a per-project dependency.
-
-**One-time setup.** GitHub Packages requires authentication (even for public packages), so add to your `~/.npmrc`:
-
-```
-@rmartz:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=<a GitHub token with the read:packages scope>
-```
+envctl is published publicly to npmjs as `@rmartz/envctl` and installed as a personal global CLI — never a per-project dependency. No token or `.npmrc` setup is needed.
 
 **Install and update:**
 
 ```bash
 pnpm add -g @rmartz/envctl         # install
 pnpm add -g @rmartz/envctl@latest  # update to the newest release
+```
+
+If your `~/.npmrc` maps the `@rmartz` scope to GitHub Packages (other `@rmartz` packages live there), that mapping wins and you'll only see old envctl versions. Override it for the install:
+
+```bash
+pnpm add -g @rmartz/envctl@latest --@rmartz:registry=https://registry.npmjs.org/
 ```
 
 Then, from any project directory:
@@ -76,4 +75,4 @@ pnpm run test:ts   # vitest
 
 ## Releases
 
-Releases are automated with [semantic-release](https://semantic-release.gitbook.io/): a merge to `main` computes the next version from the Conventional Commit history, tags it, creates a GitHub release, and publishes `@rmartz/envctl` to GitHub Packages.
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/): a merge to `main` computes the next version from the Conventional Commit history, tags it, creates a GitHub release, and publishes `@rmartz/envctl` to npmjs through OIDC trusted publishing (no npm token; tied to the `release.yml` filename). Versions published before the move stay on GitHub Packages.

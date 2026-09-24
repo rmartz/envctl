@@ -8,7 +8,9 @@
     "url": "git+https://github.com/rmartz/envctl.git"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org/",
+    "@rmartz:registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "files": [
     "dist"

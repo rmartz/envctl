@@ -1,5 +1,14 @@
 name: Release
 
+# semantic-release on every push to main: computes the next version from the
+# Conventional Commit history, publishes @rmartz/envctl to npmjs (public), tags
+# it, and creates the GitHub Release.
+#
+# npm auth is OIDC trusted publishing: npmjs trusts THIS workflow file
+# (`release.yml`) in rmartz/envctl, so there is no NPM_TOKEN secret. Renaming
+# this file breaks publishing until the trusted publisher on npmjs is updated to
+# match. Provenance attestations are generated automatically.
+
 on:
   push:
     branches: [main]
@@ -9,7 +18,7 @@ concurrency: release
 
 permissions:
   contents: write # create tags and GitHub releases
-  packages: write # publish to GitHub Packages
+  id-token: write # npm trusted publishing (OIDC) + provenance
   issues: write # semantic-release comments on released issues
   pull-requests: write # semantic-release comments on released PRs
 
@@ -28,6 +37,3 @@ jobs:
       - run: pnpm exec semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # @semantic-release/npm authenticates to the publishConfig registry
-          # (GitHub Packages) with this token; GITHUB_TOKEN has packages:write.
-          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
