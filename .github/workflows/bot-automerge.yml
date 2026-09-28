@@ -26,6 +26,14 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Enable auto-merge with a real-actor PAT, not GITHUB_TOKEN: GitHub attributes
+      # the eventual merge to whoever enabled auto-merge, and a GITHUB_TOKEN-driven
+      # push to main fires no further workflows — so bot merges would land on main
+      # with no push-triggered CI, release, or merge-safety invalidation. Falls back
+      # to the job token while BOT_AUTOMERGE_TOKEN is unset (an empty `token` input
+      # would override the action's default and break every step).
       - uses: rmartz/bot-automerge-action@a46eafc1396993ffc04918f452b3d1c0e3c80f4f # v1.1.1
         with:
           pr: ${{ github.event.pull_request.number }}
+          token: ${{ secrets.BOT_AUTOMERGE_TOKEN || github.token }}
+          release-please-token: ${{ secrets.BOT_AUTOMERGE_TOKEN }}
