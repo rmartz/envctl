@@ -19,8 +19,17 @@ pnpm format                 # Prettier --write
 pnpm run format:check       # Prettier --check
 pnpm run test:ts            # Run the Vitest suite
 pnpm run check:file-length  # File-length ratchet
-pnpm run verify:release-notes  # Prove the changelog toolchain renders release notes
 ```
+
+Releases run through the fleet's shared
+[semantic-release-ci](https://github.com/rmartz/semantic-release-ci) workflows:
+[`release.yml`](.github/workflows/release.yml) releases on push to `main`, and
+[`release-check.yml`](.github/workflows/release-check.yml) (check
+`release-check / release-check`) proves `.releaserc.json` still works with the
+shared toolchain on every PR. The toolchain (`semantic-release`, its plugins, the
+changelog preset) is **not** in this repo's `package.json` — never add it back,
+and never reintroduce a local render script or a `semantic-release --dry-run` job
+as a release guard.
 
 The remaining hygiene checks — action pins, package pins, AGENTS.md/CLAUDE.md
 pairing, OKF docs frontmatter + index navigability + link integrity, and
