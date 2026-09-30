@@ -51,8 +51,9 @@ The repo-hygiene CI gates (AGENTS.md/CLAUDE.md pairing, OKF frontmatter +
 `index.md` navigability + link integrity, action pins, package pins, conflict
 markers) now run via [`rmartz/repo-hygiene-action`](https://github.com/rmartz/repo-hygiene-action)
 (see `.github/workflows/repo-hygiene.yml`, configured in `.repo-hygiene.yml`)
-rather than local scripts. Two local gate scripts remain:
+rather than local scripts. One local gate script remains:
 `scripts/check-file-length.mjs` (the file-length ratchet, not yet documented here;
-a page is added when it is next touched) and `scripts/verify-changelog-render.mjs`,
-which the `Release notes render` CI job runs to prove the changelog preset and
-writer can render release notes before a release depends on them.
+a page is added when it is next touched). The release config is checked by the
+shared [semantic-release-ci](https://github.com/rmartz/semantic-release-ci)
+`release-check` workflow, which proves it renders release notes with the shared
+toolchain before a release depends on it.
