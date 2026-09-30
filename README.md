@@ -75,4 +75,4 @@ pnpm run test:ts   # vitest
 
 ## Releases
 
-Releases are automated with [semantic-release](https://semantic-release.gitbook.io/): a merge to `main` computes the next version from the Conventional Commit history, tags it, creates a GitHub release, and publishes `@rmartz/envctl` to npmjs through OIDC trusted publishing (no npm token; tied to the `release.yml` filename). Versions published before the move stay on GitHub Packages.
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/): a merge to `main` computes the next version from the Conventional Commit history, publishes `@rmartz/envctl` to npmjs through OIDC trusted publishing (no npm token; tied to the `release.yml` filename), and only then tags it and creates a GitHub release. The publish runs as `npm publish` from `@semantic-release/exec`'s `prepare` step (with `@semantic-release/npm`'s own publish disabled) so a failed publish stops the release before any tag is pushed. Versions published before the move stay on GitHub Packages.
