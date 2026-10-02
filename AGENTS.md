@@ -38,6 +38,11 @@ merge-conflict markers — run in CI via [`rmartz/repo-hygiene-action`](https://
 rather than as per-repo scripts. Updates to the check logic arrive via Dependabot
 bumps of the pinned action.
 
+The read-only PR content policy checks (such as CI-loosening detection) run via [`rmartz/pr-policy-action`](https://github.com/rmartz/pr-policy-action)
+in [`pr-policy.yml`](.github/workflows/pr-policy.yml), which posts the
+`pr-policy` check. It passes `skip-uat: true`: envctl is a CLI with nothing to
+user-test, so the UAT gate is off.
+
 ## Agent Directive Files
 
 Directives for AI coding agents live in **`AGENTS.md`** — the single source of
