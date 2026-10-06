@@ -117,7 +117,7 @@ function firebaseConfigMissing(
 // Validates that the config needed to initialize the chosen service(s) is
 // present (in the deployment YAML or shell env), erroring with every gap at once.
 export function validateInitConfig(
-  init: "all" | "firebase" | "sentry",
+  init: "all" | "firebase" | "sentry" | "posthog",
   deploymentDir: string,
   targetEnv: string,
   envList: string[],

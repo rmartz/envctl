@@ -31,6 +31,14 @@ each resolved Vercel target, **upserts** every variable:
 - a variable **not** present in the config files is left **untouched** — push
   never deletes.
 
+Before anything is written (dry run included), push refuses when two active
+environments on different targets share a PostHog project key
+(`NEXT_PUBLIC_POSTHOG_KEY`, or its manifest rename). Each environment must use
+its own PostHog project so non-production traffic never reaches production
+(#173; see [PostHog](providers.md#posthog)). The check covers every active
+environment, not only the ones being pushed, so a single-env push can't collide
+with a value already live on another target.
+
 Because it upserts and never deletes, `config push` is safe to run against a
 blank Vercel project (everything is created) or an established one (only the
 tracked keys change).

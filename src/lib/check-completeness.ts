@@ -3,6 +3,7 @@ import * as fs from "fs";
 import { mkError, mkWarning, type Finding } from "./check";
 import { resolveFirebaseCredential } from "./firebase-credential";
 import { manifestFilePath, type ResolvedManifest } from "./manifest";
+import { resolvePosthogVars } from "./posthog";
 import type { DeploymentProvider } from "./providers/deployment";
 import {
   serviceProviders,
@@ -43,6 +44,9 @@ export function checkServiceContext(
     tempDir: "",
     firebaseCredential: resolveFirebaseCredential(
       manifest.services.find((s) => s.provider === "firebase"),
+    ),
+    posthogVars: resolvePosthogVars(
+      manifest.services.find((s) => s.provider === "posthog"),
     ),
   };
 }

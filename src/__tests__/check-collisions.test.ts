@@ -46,8 +46,9 @@ const makeDeployment = (live: VercelEnvVar[]): DeploymentProvider =>
 async function collisions(
   live: VercelEnvVar[],
   overlays: Record<string, Record<string, string>> = {},
+  manifestLines: string[] = MANIFEST,
 ) {
-  const dir = makeManifestDir(tmpDir, MANIFEST, overlays);
+  const dir = makeManifestDir(tmpDir, manifestLines, overlays);
   const manifest = parseManifest(dir);
   const ctx = checkServiceContext(manifest, makeDeployment(live));
   return checkCollisions(manifest, ctx, live, envTargetResolver(dir));
@@ -65,6 +66,27 @@ describe("checkCollisions — isolated vars across environments", () => {
         kind: "collision",
         key: "FIREBASE_PROJECT_ID",
       }),
+    ]);
+  });
+
+  it("checks the renamed PostHog project key for collisions", async () => {
+    const found = await collisions(
+      [
+        makeLiveVar("PH_KEY", "production", "phc_shared"),
+        makeLiveVar("PH_KEY", "preview", "phc_shared"),
+        makeLiveVar("NEXT_PUBLIC_POSTHOG_KEY", "production", "phc_prod"),
+        makeLiveVar("NEXT_PUBLIC_POSTHOG_KEY", "preview", "phc_staging"),
+      ],
+      {},
+      [
+        ...MANIFEST.slice(0, -1),
+        "  - provider: posthog",
+        "    variables:",
+        "      projectKey: PH_KEY",
+      ],
+    );
+    expect(found).toEqual([
+      expect.objectContaining({ kind: "collision", key: "PH_KEY" }),
     ]);
   });
 

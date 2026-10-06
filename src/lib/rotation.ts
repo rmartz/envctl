@@ -10,6 +10,7 @@ import {
 } from "./firebase-credential";
 import { err, log, warn } from "./logger";
 import { parseManifest } from "./manifest";
+import { posthogVarsFor } from "./posthog";
 import { resolveProjectDeployment } from "./providers/registry";
 import {
   resolveServiceProvider,
@@ -45,7 +46,7 @@ export interface RotationOptions {
   workingDir?: string;
   /** Deployment config directory (for resolving the deployment provider). */
   deploymentDir?: string;
-  init?: "all" | "firebase" | "sentry";
+  init?: "all" | "firebase" | "sentry" | "posthog";
   /** SA email for --init firebase. Falls back to FIREBASE_SA_EMAIL env var. */
   firebaseSaEmail?: string;
   /** GCP project ID for --init firebase. Falls back to GCLOUD_PROJECT env var. */
@@ -59,7 +60,7 @@ export interface RotationOptions {
    * positional). Undefined rotates every provider present in the project.
    * Ignored for `init` flows, which scope via {@link RotationOptions.init}.
    */
-  provider?: "firebase" | "sentry";
+  provider?: "firebase" | "sentry" | "posthog";
   /**
    * The resolved Firebase credential contract (shape + var names) from the
    * manifest (#97/#98). Defaults to the provider default (split + default names)
@@ -90,6 +91,7 @@ export async function run(opts: RotationOptions): Promise<void> {
     gcpProject: opts.gcpProject,
     sentryOrg: opts.sentryOrg,
     sentryProject: opts.sentryProject,
+    posthogVars: posthogVarsFor(configDir),
   };
 
   const allEnvs = await deployment.listEnvVars();
@@ -105,8 +107,11 @@ export async function run(opts: RotationOptions): Promise<void> {
   const providers = serviceProviders();
   const isPresent = (p: ServiceProvider): boolean =>
     p.presenceKeys(ctx).some((k) => envKeys.includes(k));
+  // `init all` covers only the API-automatable providers; a manual-only one
+  // (manualSteps) is reachable only by naming it, which the guard refuses.
   const willInit = (p: ServiceProvider): boolean =>
-    opts.init === "all" || opts.init === p.provider;
+    (opts.init === "all" && !p.manualSteps) || opts.init === p.provider;
+  const automatable = providers.filter((p) => !p.manualSteps);
 
   // Environment scoping (#89): the provider targets this run covers, and each
   // service's declared scope. A service whose scope does not intersect this
@@ -128,8 +133,11 @@ export async function run(opts: RotationOptions): Promise<void> {
   //  - init: erroring if a selected provider's secret already exists
   //  - scoped rotate: erroring if the named provider is absent
   //  - unscoped rotate: erroring if nothing is present to rotate
+  //  - manual-only providers: refusing an explicit init/rotate with the manual
+  //    steps, and warning with them when an unscoped rotate finds the secret
   if (opts.init) {
     for (const p of providers) {
+      if (willInit(p) && p.manualSteps) err(p.manualSteps(ctx));
       if (willInit(p) && isPresent(p))
         err(
           `${p.displayName} keys already exist in this Vercel project — use \`envctl secrets rotate\` to update them, not \`envctl secrets init\`.`,
@@ -137,19 +145,23 @@ export async function run(opts: RotationOptions): Promise<void> {
     }
   } else if (opts.provider) {
     const scoped = resolveServiceProvider(opts.provider);
+    if (scoped.manualSteps) err(scoped.manualSteps(ctx));
     if (!isPresent(scoped))
       err(
         `No ${scoped.displayName} keys found in this Vercel project — nothing to rotate for \`${opts.provider}\`. To push them for the first time, use \`envctl secrets init ${opts.provider}\`.`,
       );
-  } else if (!providers.some(isPresent)) {
-    err(
-      `No ${providers.map((p) => p.displayName).join(" or ")} keys found in this Vercel project — nothing to rotate. To push secrets for the first time, use \`envctl secrets init\`.`,
-    );
+  } else {
+    for (const p of providers)
+      if (p.manualSteps && isPresent(p) && inScope(p)) warn(p.manualSteps(ctx));
+    if (!automatable.some(isPresent))
+      err(
+        `No ${automatable.map((p) => p.displayName).join(" or ")} keys found in this Vercel project — nothing to rotate. To push secrets for the first time, use \`envctl secrets init\`.`,
+      );
   }
 
   // Which providers this run acts on: for init, whichever `opts.init` selects;
   // for rotate, whichever are present and not excluded by a provider scope.
-  const acting = providers.filter(
+  const acting = automatable.filter(
     (p) =>
       inScope(p) &&
       (opts.init

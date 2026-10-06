@@ -3,7 +3,7 @@ type: Subsystem
 title: Secrets rotation engine
 description: How envctl atomically mints, deploys, verifies, and invalidates Firebase and Sentry credentials.
 resource: src/lib/rotation.ts
-tags: [secrets, rotation, firebase, sentry, vercel, atomicity]
+tags: [secrets, rotation, firebase, sentry, posthog, vercel, atomicity]
 ---
 
 # Secrets rotation engine
@@ -220,6 +220,30 @@ environment (the default). Scoping is **service-/group-level only** — individu
 variables inherit their container's scope and cannot override it; ungrouped
 top-level variables default to all environments. Variable-group scoping for
 [generated secrets](#generated-secrets) works the same way (`group.environments`).
+
+## PostHog (manual rotation)
+
+PostHog's only secret is the optional `POSTHOG_PERSONAL_API_KEY` (server-side
+flag local evaluation or query API). The PostHog API won't create, roll, or
+delete personal API keys for a caller that authenticates with a personal API key.
+Only a logged-in browser session can do that. So envctl can't mint a
+replacement, and PostHog is a [manual-only provider](providers.md#manual-only-sources-manualsteps):
+
+- `secrets init posthog` and `secrets rotate posthog` refuse up front, before
+  anything is written, and print the manual steps.
+- An unscoped `secrets rotate` rotates the other providers and prints the
+  PostHog steps as a warning when the personal key is present.
+- `secrets init` (auto or `all`) never selects PostHog.
+
+To rotate by hand without downtime: create a new key with the same scopes in
+PostHog → Settings → Personal API keys. Don't use "Roll", which kills the old
+value before the new one is deployed. Then replace the var on each target with
+`vercel env rm` / `vercel env add … --sensitive`, redeploy and verify, and
+delete the old key in PostHog.
+
+The public project key and host aren't secrets. They live in
+`deployment/{env}.yml` and are pushed by [`config push`](config-push.md), which
+refuses when two environments share a project key.
 
 ## Prerequisites
 

@@ -112,6 +112,19 @@ describe("declaredByEnv — the declared set per environment", () => {
     );
   });
 
+  it("requires PostHog's contract vars under their renamed names", () => {
+    const dir = makeManifestDir(tmpDir, [
+      ...HEADER,
+      "services:",
+      "  - provider: posthog",
+      "    variables:",
+      "      projectKey: PH_KEY",
+      "      host: PH_HOST",
+    ]);
+    const prod = declarations(dir).production;
+    expect([...prod.required].sort()).toEqual(["PH_HOST", "PH_KEY"]);
+  });
+
   it("does not require a service's vars outside its scope", () => {
     const dir = makeManifestDir(tmpDir, [
       ...HEADER,

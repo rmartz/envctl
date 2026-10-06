@@ -55,6 +55,10 @@ describe("parseSecretsArgs — rotate mode", () => {
     expect(parseSecretsArgs(["sentry"], WD, false).provider).toBe("sentry");
   });
 
+  it("reads a posthog positional as the provider scope", () => {
+    expect(parseSecretsArgs(["posthog"], WD, false).provider).toBe("posthog");
+  });
+
   it("combines the provider positional with flags", () => {
     const opts = parseSecretsArgs(
       ["firebase", "--env", "production", "--no-invalidate"],

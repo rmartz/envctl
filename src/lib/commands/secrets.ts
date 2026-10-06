@@ -15,6 +15,7 @@ import { listActiveEnvs, parseDeploymentEnv } from "../environments";
 import { err, log } from "../logger";
 import type { DeploymentProvider } from "../providers/deployment";
 import { resolveProjectDeployment } from "../providers/registry";
+import { posthogManualSteps, posthogVarsFor } from "../posthog";
 import { serviceProviders, type ServiceContext } from "../providers/service";
 import { detectProject } from "../project";
 import { run as rotateKeysRun } from "../rotation";
@@ -42,7 +43,7 @@ export type { SecretsOptions };
 // requested environment (rotation auto-detects services from existing keys).
 async function dispatchRotation(
   opts: SecretsOptions,
-  init: "all" | "firebase" | "sentry" | undefined,
+  init: "all" | "firebase" | "sentry" | "posthog" | undefined,
   envList: string[],
   devSource: string | undefined,
   firebaseCredential: FirebaseCredentialSpec,
@@ -133,8 +134,9 @@ async function anyServicePresent(
     tempDir: "",
     firebaseCredential,
   };
-  return serviceProviders().some((p) =>
-    p.presenceKeys(ctx).some((k) => keys.has(k)),
+  // Manual-only providers (manualSteps) never give the engine work to do.
+  return serviceProviders().some(
+    (p) => !p.manualSteps && p.presenceKeys(ctx).some((k) => keys.has(k)),
   );
 }
 
@@ -145,7 +147,7 @@ async function anyServicePresent(
 // provider work), a redeploy is triggered here instead.
 async function runWithGeneratedSecrets(
   opts: SecretsOptions,
-  init: "all" | "firebase" | "sentry" | undefined,
+  init: "all" | "firebase" | "sentry" | "posthog" | undefined,
   isInit: boolean,
   envList: string[],
   devSource: string | undefined,
@@ -223,6 +225,11 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
       );
     }
   }
+  // PostHog's personal API key can't be minted or deleted via its API: refuse
+  // a named init/rotate with the manual steps before anything — generated
+  // secrets included — is written.
+  if (init === "posthog" || opts.provider === "posthog")
+    err(posthogManualSteps(posthogVarsFor(opts.deploymentDir)));
   if (init)
     validateInitConfig(
       init,

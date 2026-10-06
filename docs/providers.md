@@ -56,10 +56,57 @@ Two optional members feed [`envctl check --live`](check.md):
   the same value. Firebase returns its project-id var.
 
 - `serviceProviders()` returns the registered sources in a fixed order
-  (Firebase, then Sentry) — the order in which they act, so the auth preflight
-  and rotation sequence match the pre-registry behavior.
+  (Firebase, then Sentry, then PostHog) — the order in which they act, so the
+  auth preflight and rotation sequence match the pre-registry behavior.
 - `resolveServiceProvider(name)` resolves one by its manifest name, erroring on
   an unknown value.
+
+Two optional members describe a source's variable contract for `check --live`:
+`contractVars` (every var the service provisions on each in-scope target;
+falls back to `presenceKeys`) and `isolatedVars` (vars whose values must differ
+across environments, such as a project id).
+
+### Manual-only sources (`manualSteps`)
+
+A source whose secret its own API cannot mint or delete sets `manualSteps`,
+returning the hand-rotation instructions. The engine never calls `init`/`rotate`
+on it: an explicit `secrets init <name>` / `secrets rotate <name>` is refused up
+front with those steps, `init all` skips it, and an unscoped `rotate` that finds
+its secret present prints the steps as a warning while rotating the other
+sources. It takes no auth-preflight slot (`authKey: "none"`).
+
+### PostHog
+
+[`providers/posthog.ts`](../src/lib/providers/posthog.ts) with its var contract
+in [`posthog.ts`](../src/lib/posthog.ts) (#173). Fields, overridable via the
+manifest `services[].variables` field→name map like Firebase's:
+
+| Field            | Default var                | Kind             |
+| ---------------- | -------------------------- | ---------------- |
+| `projectKey`     | `NEXT_PUBLIC_POSTHOG_KEY`  | public           |
+| `host`           | `NEXT_PUBLIC_POSTHOG_HOST` | public           |
+| `personalApiKey` | `POSTHOG_PERSONAL_API_KEY` | secret, optional |
+
+```yaml
+services:
+  - provider: posthog
+    variables:
+      personalApiKey: POSTHOG_SERVER_KEY # optional rename
+```
+
+- The project key and host are public literals in `deployment/{env}.yml`,
+  pushed by [`config push`](config-push.md). Each environment uses its own
+  PostHog project; `config push` refuses when two environments on different
+  targets share a project key.
+- `presenceKeys` is the personal API key, so a project using only the public
+  key has nothing to rotate. `contractVars` is the project key and host;
+  `isolatedVars` is the project key.
+- PostHog is **manual-only**. Its API rejects creating, rolling, listing, or
+  deleting personal API keys when the caller authenticates with a personal API
+  key: `PersonalApiKeySelfAccessPermission` in PostHog's
+  [`posthog/api/personal_api_key.py`](https://github.com/PostHog/posthog/blob/master/posthog/api/personal_api_key.py)
+  allows only `retrieve` for that kind of caller. See
+  [Secrets rotation → PostHog](secrets-rotation.md#posthog-manual-rotation).
 
 ## How the rotation engine iterates them
 
@@ -69,7 +116,8 @@ from the registry, then iterates `serviceProviders()` generically:
 1. **Detect** which sources are present from the (target-scoped) Vercel env keys.
 2. **Guard** — `init` errors if a selected source already exists; a scoped
    `rotate` errors if the named source is absent; an unscoped `rotate` errors if
-   nothing is present.
+   no automatable source is present. Manual-only sources are refused or warned
+   about here and never act.
 3. **Auth preflight** (`assertProviderAuth`) for exactly the acting sources,
    before any key is minted (#91).
 4. **init** each acting source, or **rotate** each and collect its

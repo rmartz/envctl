@@ -189,4 +189,30 @@ describe("runPush — API writes", () => {
       expect.anything(),
     );
   });
+
+  it("refuses to write when two environments share a PostHog project key", async () => {
+    vi.spyOn(VercelClient.prototype, "listEnvVars").mockResolvedValue({
+      envs: [],
+      pagination: undefined,
+    });
+    const mockCreate = vi.fn().mockResolvedValue({ id: "env_new" });
+    vi.spyOn(VercelClient.prototype, "createEnvVar").mockImplementation(
+      mockCreate,
+    );
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    const deployDir = makeDeploymentDir(tmpDir, ["production", "staging"], {
+      production: { NEXT_PUBLIC_POSTHOG_KEY: "phc_same" },
+      staging: { NEXT_PUBLIC_POSTHOG_KEY: "phc_same" },
+    });
+    await expect(
+      runPush({
+        targetEnv: "production",
+        workingDir: tmpDir,
+        deploymentDir: deployDir,
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/NEXT_PUBLIC_POSTHOG_KEY is identical/);
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
 });
