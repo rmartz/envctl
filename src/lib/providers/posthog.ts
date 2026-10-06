@@ -17,6 +17,10 @@ export const posthogServiceProvider: ServiceProvider = {
   // Keyed on the secret, not the public project key: a project that only uses
   // the public key has nothing to rotate.
   presenceKeys: (ctx) => [varsOf(ctx).personalApiKey],
+  // The public pair every in-scope target needs; the personal key is optional.
+  contractVars: (ctx) => [varsOf(ctx).projectKey, varsOf(ctx).host],
+  // Staging and production must use separate PostHog projects.
+  isolatedVars: (ctx) => [varsOf(ctx).projectKey],
   manualSteps: (ctx) => posthogManualSteps(varsOf(ctx)),
   init: (ctx) => err(posthogManualSteps(varsOf(ctx))),
   rotate: (ctx) => err(posthogManualSteps(varsOf(ctx))),
