@@ -104,7 +104,10 @@ export function parseSecretsArgs(
     } else if (arg === "-h" || arg === "--help") {
       console.log(isInit ? INIT_USAGE : ROTATE_USAGE);
       process.exit(0);
-    } else if (!providerTargetSet && (arg === "firebase" || arg === "sentry" || arg === "posthog")) {
+    } else if (
+      !providerTargetSet &&
+      (arg === "firebase" || arg === "sentry" || arg === "posthog")
+    ) {
       // A leading firebase|sentry positional selects the init target in init
       // mode, or scopes the rotation to that provider in rotate mode.
       if (isInit) init = arg;

@@ -37,7 +37,9 @@ export function resolvePosthogVars(service?: ServiceDecl): PosthogVarNames {
         `Unknown PostHog variable field '${field}' — expected one of: ${ALL_FIELDS.join(", ")}`,
       );
     if (!name.trim())
-      throw new Error(`PostHog variable override for '${field}' must not be empty`);
+      throw new Error(
+        `PostHog variable override for '${field}' must not be empty`,
+      );
   }
 
   const names = {} as Record<PosthogField, string>;
@@ -101,7 +103,9 @@ export function assertPosthogProjectIsolation(
     const prior = seen.get(value);
     if (!prior) seen.set(value, { env, target });
     else if (prior.target !== target)
-      collisions.push(`'${prior.env}' (${prior.target}) and '${env}' (${target})`);
+      collisions.push(
+        `'${prior.env}' (${prior.target}) and '${env}' (${target})`,
+      );
   }
 
   if (collisions.length > 0)
