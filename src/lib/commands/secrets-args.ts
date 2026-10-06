@@ -73,7 +73,7 @@ OPTIONS:
 
 // Parses `secrets rotate` / `secrets init` args (the global -C/--working-dir
 // flag is already stripped by the router). `isInit` selects init mode: it seeds
-// `init` to "auto" and accepts a leading firebase|sentry positional. Prints
+// `init` to "auto" and accepts a leading firebase|sentry|posthog positional. Prints
 // usage and exits 0 on -h/--help.
 export function parseSecretsArgs(
   args: string[],
@@ -108,7 +108,7 @@ export function parseSecretsArgs(
       !providerTargetSet &&
       (arg === "firebase" || arg === "sentry" || arg === "posthog")
     ) {
-      // A leading firebase|sentry positional selects the init target in init
+      // A leading firebase|sentry|posthog positional selects the init target in init
       // mode, or scopes the rotation to that provider in rotate mode.
       if (isInit) init = arg;
       else provider = arg;
