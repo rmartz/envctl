@@ -36,7 +36,10 @@ async function resolveValue(
     return { kind: "value", value: found.value };
   if (found.type !== "sensitive") {
     try {
-      return { kind: "value", value: await deployment.getEnvVarValue(found.id) };
+      return {
+        kind: "value",
+        value: await deployment.getEnvVarValue(found.id),
+      };
     } catch {
       // fall through to the declared literal
     }

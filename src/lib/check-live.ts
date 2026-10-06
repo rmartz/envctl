@@ -46,9 +46,7 @@ export async function checkLive(workingDir: string): Promise<Finding[]> {
     live,
   );
   // Isolated per-environment identities must not repeat across targets.
-  findings.push(
-    ...(await checkCollisions(manifest, ctx, live, resolveTarget)),
-  );
+  findings.push(...(await checkCollisions(manifest, ctx, live, resolveTarget)));
 
   // The deprecated FIREBASE_SA_EMAIL must agree with the credential's live
   // clientEmail (#103).
