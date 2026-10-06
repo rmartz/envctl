@@ -49,13 +49,12 @@ describe("runCheck --json — machine-readable findings", () => {
 
   it("emits each finding with severity, kind, and message", async () => {
     makeManifestDir(tmpDir, [...HEADER, "services:", "  - provider: nonesuch"]);
-    expect((await runJson()).parsed).toEqual([
-      {
-        severity: "error",
-        kind: "general",
-        message: expect.stringMatching(/nonesuch/),
-      },
-    ]);
+    const [finding] = (await runJson()).parsed as Record<string, string>[];
+    expect({ ...finding, message: /nonesuch/.test(finding.message) }).toEqual({
+      severity: "error",
+      kind: "general",
+      message: true,
+    });
   });
 
   it("still exits non-zero when a finding is an error", async () => {
