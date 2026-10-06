@@ -3,7 +3,7 @@ type: Runbook
 title: Applying config and minting/rotating secrets on a Vercel deploy
 description: The scenario-driven playbook for using envctl to push config and mint/rotate Firebase & Sentry secrets on a Firebase + Next.js Vercel project.
 resource: src/lib/rotation.ts
-tags: [runbook, vercel, firebase, sentry, secrets, config-push, agent]
+tags: [runbook, vercel, firebase, sentry, posthog, secrets, config-push, agent]
 ---
 
 # Runbook — applying config and minting/rotating secrets on a Vercel deploy
@@ -243,6 +243,39 @@ envctl secrets init sentry          # now mint the new provider's secret
 **How you know it worked:** `config push` reports the new public keys created,
 and `secrets init sentry` reports Sentry initialized. Naming the provider
 explicitly (`sentry`) avoids re-touching the already-established Firebase secret.
+
+### D2. Add PostHog to a Vercel project
+
+PostHog's project key and host are public, so they ship as plain config. Use a
+**separate PostHog project per environment** so staging/UAT traffic never
+pollutes production analytics.
+
+```bash
+# 1. In PostHog, create one project per environment (e.g. "my-app" and
+#    "my-app staging") and copy each project's API key (phc_…).
+# 2. Add them to each environment's YAML, e.g. deployment/production.yml:
+#      NEXT_PUBLIC_POSTHOG_KEY: phc_prod…
+#      NEXT_PUBLIC_POSTHOG_HOST: https://us.i.posthog.com   # or /ingest
+#    and deployment/staging.yml with the staging project's key.
+# 3. Optionally declare the service in manifest.yml (needed only to rename vars):
+#      services:
+#        - provider: posthog
+envctl config push --dry-run        # refuses if two environments share a key
+envctl config push
+```
+
+If the app needs `POSTHOG_PERSONAL_API_KEY` (server-side flag evaluation),
+create it in PostHog → Settings → Personal API keys and add it with
+`vercel env add POSTHOG_PERSONAL_API_KEY <target> --sensitive`. envctl can't
+mint it: PostHog's API doesn't create personal keys for API-key callers, so
+`secrets init posthog` just prints these steps
+([details](secrets-rotation.md#posthog-manual-rotation)).
+
+**How you know it worked:** `config push` reports both public keys created per
+target. If it refuses with `NEXT_PUBLIC_POSTHOG_KEY is identical across
+environments`, two environments point at the same PostHog project. Give each
+environment its own project. The next build picks up the vars, since
+`config push` doesn't redeploy.
 
 ### E. Change public vars only
 

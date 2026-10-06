@@ -16,7 +16,7 @@ Format (OKF). One page per script or subsystem.
 
 - [Applying config and minting/rotating secrets on a Vercel deploy](runbook-vercel-deploy.md)
   — the scenario-driven playbook (cold-start, mint, rotate, add a provider,
-  public-var change, local pull) for operating envctl against a Firebase +
+  add PostHog, public-var change, local pull) for operating envctl against a Firebase +
   Next.js Vercel project.
 
 ## Subsystems
@@ -34,7 +34,7 @@ Format (OKF). One page per script or subsystem.
   environment for local testing (`config pull`; the inverse of `config push`).
 - [Secrets rotation engine](secrets-rotation.md) — atomically minting,
   deploying, verifying, and invalidating Firebase and Sentry credentials
-  (`secrets rotate` / `secrets init`).
+  (`secrets rotate` / `secrets init`), plus PostHog's manual rotation.
 - [Config validation](check.md) — read-only checks that a project's deployment
   manifest is coherent and deployable, with an optional live completeness check
   — missing, orphaned, and colliding variables per target (`check` /
