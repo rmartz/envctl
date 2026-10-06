@@ -5,6 +5,7 @@ import { resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
 import { listActiveEnvs, parseDeploymentEnv } from "../environments";
 import { err, log, warn } from "../logger";
+import { assertPosthogProjectIsolation } from "../posthog";
 import type { DeploymentProvider } from "../providers/deployment";
 import { resolveProjectDeployment } from "../providers/registry";
 import { envTargetResolver } from "../targets";
@@ -156,6 +157,10 @@ export async function runPush(opts: PushOptions): Promise<void> {
   const resolveTarget = envTargetResolver(opts.deploymentDir);
   const devSource = findDevSource(opts.deploymentDir, activeEnvs);
   const { envList, syncDev } = resolvePlan(opts, activeEnvs, devSource);
+
+  // Refuse before any write (dry run included) when two environments share a
+  // PostHog project key (#173).
+  assertPosthogProjectIsolation(opts.deploymentDir, activeEnvs);
 
   if (opts.dryRun) {
     dryRunPlan(opts, envList, syncDev, devSource, resolveTarget);

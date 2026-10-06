@@ -5,8 +5,10 @@ import {
 import { initFirebase, rotateFirebase } from "../firebase";
 import { invalidateFirebaseKeys } from "../firebase-invalidate";
 import { err } from "../logger";
+import type { PosthogVarNames } from "../posthog";
 import { initSentry, invalidateSentryKey, rotateSentry } from "../sentry";
 import type { DeploymentProvider } from "./deployment";
+import { posthogServiceProvider } from "./posthog";
 
 // Context handed to every service provider for a run — the superset of
 // provider-specific inputs; each provider reads only what it needs. `tempDir`
@@ -20,6 +22,8 @@ export interface ServiceContext {
   gcpProject?: string;
   sentryOrg?: string;
   sentryProject?: string;
+  /** Resolved PostHog var names (#173); undefined ⇒ the default names. */
+  posthogVars?: PosthogVarNames;
   /**
    * The provider targets this service is scoped to (#89), from the manifest's
    * `services[].environments`. Undefined ⇒ all environments (unscoped). init /
@@ -43,7 +47,14 @@ export interface ServiceProvider {
   readonly provider: string;
   readonly displayName: string;
   /** Which slot this provider fills in the fail-fast auth preflight. */
-  readonly authKey: "firebase" | "sentry";
+  readonly authKey: "firebase" | "sentry" | "none";
+  /**
+   * Set for a provider whose secret cannot be rotated through its API: returns
+   * the manual steps. The engine never calls init/rotate on such a provider —
+   * it refuses an explicit init/rotate with these steps up front, and warns
+   * with them when an unscoped rotate finds the secret present.
+   */
+  manualSteps?(ctx: ServiceContext): string;
   /** Env-var keys whose presence in Vercel means this service is provisioned. */
   presenceKeys(ctx: ServiceContext): string[];
   /**
@@ -160,6 +171,7 @@ const sentryServiceProvider: ServiceProvider = {
 const SERVICE_PROVIDERS: Record<string, ServiceProvider> = {
   firebase: firebaseServiceProvider,
   sentry: sentryServiceProvider,
+  posthog: posthogServiceProvider,
 };
 
 export const serviceProviders = (): ServiceProvider[] =>

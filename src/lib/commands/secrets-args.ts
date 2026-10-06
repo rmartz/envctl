@@ -21,13 +21,13 @@ export interface SecretsOptions {
   refreshPreviews: boolean;
   // Bootstrap mode: undefined = rotate existing secrets; "auto" = detect from
   // deployment config; otherwise the specific service to initialize.
-  init?: "all" | "auto" | "firebase" | "sentry";
+  init?: "all" | "auto" | "firebase" | "sentry" | "posthog";
   // Rotate mode only: restrict the run to a single provider (the leading
-  // firebase|sentry positional). Undefined rotates every present provider.
-  provider?: "firebase" | "sentry";
+  // firebase|sentry|posthog positional). Undefined rotates every present provider.
+  provider?: "firebase" | "sentry" | "posthog";
 }
 
-export const ROTATE_USAGE = `Usage: envctl secrets rotate [firebase|sentry] [OPTIONS]
+export const ROTATE_USAGE = `Usage: envctl secrets rotate [firebase|sentry|posthog] [OPTIONS]
 
 Atomically rotate provider secrets: mint the new credential, redeploy, verify
 it, then invalidate the old one — so the project is never left without a working
@@ -37,8 +37,11 @@ project. Auth for every provider to be rotated is checked up front, so an
 unauthenticated provider fails fast instead of leaving a partial rotation.
 
 ARGUMENTS:
-  firebase | sentry        Restrict the rotation to a single provider
-                           (default: every provider present in the project)
+  firebase | sentry | posthog
+                           Restrict the rotation to a single provider
+                           (default: every provider present in the project).
+                           PostHog's personal API key is rotated by hand —
+                           naming it prints the manual steps
 
 OPTIONS:
   --env <name>             Environment to rotate (a name from environments.yml,
@@ -49,14 +52,16 @@ OPTIONS:
   --refresh-previews       Redeploy active PR previews after rotation
   -h, --help               Show this help`;
 
-export const INIT_USAGE = `Usage: envctl secrets init [firebase|sentry] [OPTIONS]
+export const INIT_USAGE = `Usage: envctl secrets init [firebase|sentry|posthog] [OPTIONS]
 
 Bootstrap provider secrets for a fresh project (implies a rotation). Omit the
 service to auto-detect which to initialize from the deployment config. Fails if
 the target secrets already exist in the Vercel project.
 
 ARGUMENTS:
-  firebase | sentry        Service to initialize (default: auto-detect)
+  firebase | sentry | posthog
+                           Service to initialize (default: auto-detect).
+                           PostHog is manual-only — naming it prints the steps
 
 OPTIONS:
   --env <name>             Environment to initialize (default: all)
@@ -99,7 +104,7 @@ export function parseSecretsArgs(
     } else if (arg === "-h" || arg === "--help") {
       console.log(isInit ? INIT_USAGE : ROTATE_USAGE);
       process.exit(0);
-    } else if (!providerTargetSet && (arg === "firebase" || arg === "sentry")) {
+    } else if (!providerTargetSet && (arg === "firebase" || arg === "sentry" || arg === "posthog")) {
       // A leading firebase|sentry positional selects the init target in init
       // mode, or scopes the rotation to that provider in rotate mode.
       if (isInit) init = arg;
