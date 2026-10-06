@@ -1,22 +1,26 @@
-import { mkError, mkWarning, type Finding } from "./check";
+import { mkError, type Finding } from "./check";
+import { checkCollisions } from "./check-collisions";
+import {
+  checkCompleteness,
+  checkServiceContext,
+  declaredByEnv,
+} from "./check-completeness";
 import {
   checkFirebaseProjectDrift,
   checkFirebaseSaDrift,
 } from "./check-firebase";
 import { deploymentDir } from "./commands/deployment-config";
-import { parseDeploymentEnv } from "./environments";
 import { parseManifest } from "./manifest";
 import type { DeploymentProvider } from "./providers/deployment";
 import { resolveProjectDeployment } from "./providers/registry";
 import { envTargetResolver } from "./targets";
 
-// Live reconciliation (`envctl check --live`): compares the public config vars
-// the project declares against what is actually present on the deployment
-// provider, surfacing drift. Requires network + auth, which is why it is behind
-// a flag. Secrets (Firebase/Sentry credentials, generated values) are owned by
-// the rotation engine and deliberately out of scope here — this checks the
-// public variables `config push` manages, so declared-vs-live stays apples to
-// apples.
+// Live reconciliation (`envctl check --live`): compares what the project
+// declares against what is actually present on the deployment provider — every
+// target's variables against its declared set (missing / orphaned), isolated
+// identities across targets (collisions), and the Firebase credential's
+// identity against its committed counterparts. Requires network + auth, which
+// is why it is behind a flag.
 export async function checkLive(workingDir: string): Promise<Finding[]> {
   const configDir = deploymentDir(workingDir);
 
@@ -34,23 +38,15 @@ export async function checkLive(workingDir: string): Promise<Finding[]> {
   const manifest = parseManifest(configDir);
   const resolveTarget = envTargetResolver(configDir);
   const live = (await deployment.listEnvVars()).envs;
+  const ctx = checkServiceContext(manifest, deployment);
 
-  const findings: Finding[] = [];
-  for (const env of manifest.environments) {
-    const target = resolveTarget(env);
-    const declared = parseDeploymentEnv(configDir, env);
-    for (const key of Object.keys(declared)) {
-      const present = live.some(
-        (e) => e.key === key && e.target.includes(target),
-      );
-      if (!present)
-        findings.push(
-          mkWarning(
-            `declared variable '${key}' for '${env}' is not present on the '${target}' target (drift).`,
-          ),
-        );
-    }
-  }
+  // Every target carries exactly what the project declares for it (#175).
+  const findings: Finding[] = checkCompleteness(
+    declaredByEnv(configDir, manifest, ctx, resolveTarget),
+    live,
+  );
+  // Isolated per-environment identities must not repeat across targets.
+  findings.push(...(await checkCollisions(manifest, ctx, live, resolveTarget)));
 
   // The deprecated FIREBASE_SA_EMAIL must agree with the credential's live
   // clientEmail (#103).

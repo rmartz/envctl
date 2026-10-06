@@ -46,6 +46,14 @@ export interface ServiceProvider {
   readonly authKey: "firebase" | "sentry";
   /** Env-var keys whose presence in Vercel means this service is provisioned. */
   presenceKeys(ctx: ServiceContext): string[];
+  /**
+   * Every env var this service provisions on each in-scope target — what
+   * `check --live` requires to be present there. Falls back to
+   * {@link presenceKeys} when omitted.
+   */
+  contractVars?(ctx: ServiceContext): string[];
+  /** Env vars whose values must differ across environments (e.g. a project id); `check --live` errors when two environments resolve to the same value. */
+  isolatedVars?(ctx: ServiceContext): string[];
   init(ctx: ServiceContext): Promise<void>;
   rotate(ctx: ServiceContext): Promise<ServiceRotation>;
 }
@@ -55,6 +63,8 @@ const firebaseServiceProvider: ServiceProvider = {
   displayName: "Firebase",
   authKey: "firebase",
   presenceKeys: (ctx) => firebasePresenceKeys(ctx.firebaseCredential),
+  contractVars: (ctx) => Object.values(ctx.firebaseCredential.names),
+  isolatedVars: (ctx) => [ctx.firebaseCredential.names.projectId],
   init: (ctx) =>
     initFirebase(
       ctx.targetEnv,
@@ -103,6 +113,9 @@ const sentryServiceProvider: ServiceProvider = {
   displayName: "Sentry",
   authKey: "sentry",
   presenceKeys: () => ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"],
+  // init writes only the public DSN; the legacy SENTRY_DSN is still accepted
+  // (rotation reads either), so it counts as known but is not required.
+  contractVars: () => ["NEXT_PUBLIC_SENTRY_DSN"],
   init: (ctx) =>
     initSentry(
       ctx.targetEnv,

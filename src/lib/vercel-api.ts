@@ -5,7 +5,7 @@ export interface VercelEnvVar {
   key: string;
   value: string;
   target: string[];
-  type: "plain" | "encrypted" | "secret";
+  type: "plain" | "encrypted" | "secret" | "sensitive";
   createdAt?: number;
   updatedAt?: number;
 }

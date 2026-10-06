@@ -43,6 +43,18 @@ live) and how to describe it under `--no-invalidate`. **Firebase** and **Sentry*
 implement it, wrapping the existing `firebase.ts` / `sentry.ts` functions (whose
 `client` parameter is now the `DeploymentProvider` interface).
 
+Two optional members feed [`envctl check --live`](check.md):
+
+- `contractVars(ctx)` — every env var the service provisions on each in-scope
+  target (Firebase: all four credential fields under their manifest-mapped
+  names; Sentry: `NEXT_PUBLIC_SENTRY_DSN`). `check --live` requires these on
+  each target the service is scoped to; when omitted it falls back to
+  `presenceKeys`. `presenceKeys` stay tolerated (not orphaned) either way, so a
+  legacy alias such as `SENTRY_DSN` is accepted but not required.
+- `isolatedVars(ctx)` — env vars whose values must differ across environments
+  (e.g. a project id); `check --live` errors when two environments resolve to
+  the same value. Firebase returns its project-id var.
+
 - `serviceProviders()` returns the registered sources in a fixed order
   (Firebase, then Sentry) — the order in which they act, so the auth preflight
   and rotation sequence match the pre-registry behavior.

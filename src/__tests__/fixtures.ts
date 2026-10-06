@@ -111,3 +111,33 @@ export function makeDeploymentDir(
   }
   return deployDir;
 }
+
+// A deployment dir holding a manifest.yml (given as lines) plus optional
+// per-env overlay files — the manifest-format counterpart of makeDeploymentDir.
+export function makeManifestDir(
+  tmpDir: string,
+  manifestLines: string[],
+  overlays: Record<string, Record<string, string>> = {},
+): string {
+  const deployDir = makeDeploymentDir(tmpDir, [], overlays);
+  fs.rmSync(path.join(deployDir, "environments.yml"));
+  fs.writeFileSync(
+    path.join(deployDir, "manifest.yml"),
+    [...manifestLines, ""].join("\n"),
+  );
+  return deployDir;
+}
+
+// A live Vercel env var on one target.
+export const makeLiveVar = (
+  key: string,
+  target: string,
+  value = "v",
+  type: VercelEnvVar["type"] = "encrypted",
+): VercelEnvVar => ({
+  id: `${key}-${target}`,
+  key,
+  value,
+  target: [target],
+  type,
+});
