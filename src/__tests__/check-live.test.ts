@@ -57,13 +57,18 @@ afterEach(() => {
 });
 
 describe("checkLive — drift against the deployment provider (AC8)", () => {
-  it("warns about a declared variable missing on its target", async () => {
+  it("errors on a declared variable missing on its target (#175)", async () => {
     // FOO present on both targets; BAR (declared for staging → preview) absent.
     await mockLive([envVar("FOO", "production"), envVar("FOO", "preview")]);
     const found = await checkLive(tmpDir);
     expect(found).toHaveLength(1);
-    expect(found[0].severity).toBe("warning");
-    expect(found[0].message).toMatch(/'BAR'.*staging.*preview/);
+    expect(found[0]).toMatchObject({
+      severity: "error",
+      kind: "missing",
+      env: "staging",
+      target: "preview",
+      key: "BAR",
+    });
   });
 
   it("returns no findings when every declared variable is live", async () => {

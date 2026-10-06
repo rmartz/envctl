@@ -19,19 +19,30 @@ import { envTargetResolver } from "./targets";
 // reports them together, so one run surfaces *all* problems rather than
 // stopping at the first.
 export type Severity = "error" | "warning";
-export interface Finding {
+
+// Optional structured context, surfaced by `check --json` so CI can act on a
+// finding without parsing its message. `kind` names the rule that produced it
+// (e.g. "missing", "orphaned", "collision").
+export interface FindingDetails {
+  readonly kind?: string;
+  readonly env?: string;
+  readonly target?: string;
+  readonly key?: string;
+}
+
+export interface Finding extends FindingDetails {
   readonly severity: Severity;
   readonly message: string;
 }
 
-export const mkError = (message: string): Finding => ({
-  severity: "error",
-  message,
-});
-export const mkWarning = (message: string): Finding => ({
-  severity: "warning",
-  message,
-});
+export const mkError = (
+  message: string,
+  details: FindingDetails = {},
+): Finding => ({ severity: "error", message, ...details });
+export const mkWarning = (
+  message: string,
+  details: FindingDetails = {},
+): Finding => ({ severity: "warning", message, ...details });
 
 // Static (offline) validation of a project's deployment config: it reads only
 // the in-repo config, never the network. `--live` reconciliation against the
