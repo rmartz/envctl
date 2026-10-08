@@ -56,19 +56,15 @@ updates:
         patterns:
           - "js-yaml"
           - "@types/js-yaml"
-      # Split Prettier's major AND minor bumps into their own PR: a Prettier
-      # version change can require reformatting even on a minor bump (see
-      # trip-split#114), so it warrants isolated review. Patch bumps are trivial
-      # and intentionally omitted here, so they fall through to the
-      # dev-dependencies group and ride along with other minor/patch updates.
+      # Split every Prettier bump into its own PR: a Prettier version change can
+      # require reformatting even on a minor bump (see trip-split#114), so it
+      # warrants isolated review. No update-types filter, so majors, minors, and
+      # patches all land in this one group.
       # Listed first to win group-assignment precedence over the catch-all
       # dev-dependencies pattern.
       prettier:
         patterns:
           - "prettier"
-        update-types:
-          - "major"
-          - "minor"
       dev-dependencies:
         dependency-type: development
         update-types:
@@ -96,13 +92,13 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    # Action bumps are low-risk and rarely need code changes, so group all of
-    # them — major included — into a single PR.
+    # Minor/patch action bumps are low-risk and rarely need code changes, so
+    # group them into a single PR. Major bumps match no group and are raised
+    # individually, so a pending major never holds routine bumps back.
     groups:
       github-actions:
         patterns:
           - "*"
         update-types:
-          - "major"
           - "minor"
           - "patch"
