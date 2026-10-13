@@ -40,31 +40,28 @@ updates:
           - "@vitest/*"
         update-types:
           - "major"
-      eslint:
-        # eslint + @eslint/js share a version line; typescript-eslint and globals
-        # track the eslint major. All-dev, so major only.
+      ci:
+        # CI-sensitive tools in one group: pr-policy requires a `ci` title for any
+        # eslint/prettier version change (the formatter/linter can fail files a PR
+        # never touched — a Prettier minor can require reformatting, see
+        # trip-split#114), so they must not ride in a catch-all where they would
+        # block every routine bump. Plugins and configs move in lockstep with their
+        # tool: eslint + @eslint/js share a version line; typescript-eslint and
+        # globals track the eslint major. The exception to the major-only rule
+        # above: no update-types filter, so a major brings its family with it and
+        # a minor/patch never falls through to the dev-dependencies catch-all.
         patterns:
           - "eslint"
           - "@eslint/js"
           - "typescript-eslint"
           - "globals"
-        update-types:
-          - "major"
+          - "prettier"
       js-yaml:
         # @types/js-yaml tracks the js-yaml runtime major. Crosses dev/prod, so
         # keep ALL update types to hold runtime (prod) + types (dev) together.
         patterns:
           - "js-yaml"
           - "@types/js-yaml"
-      # Split every Prettier bump into its own PR: a Prettier version change can
-      # require reformatting even on a minor bump (see trip-split#114), so it
-      # warrants isolated review. No update-types filter, so majors, minors, and
-      # patches all land in this one group.
-      # Listed first to win group-assignment precedence over the catch-all
-      # dev-dependencies pattern.
-      prettier:
-        patterns:
-          - "prettier"
       dev-dependencies:
         dependency-type: development
         update-types:
