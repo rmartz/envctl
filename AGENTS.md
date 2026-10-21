@@ -43,6 +43,12 @@ in [`pr-policy.yml`](.github/workflows/pr-policy.yml), which posts the
 `pr-policy` check. It passes `skip-uat: true`: envctl is a CLI with nothing to
 user-test, so the UAT gate is off.
 
+[`pr-lifecycle.yml`](.github/workflows/pr-lifecycle.yml) runs
+[`rmartz/pr-lifecycle-action`](https://github.com/rmartz/pr-lifecycle-action)
+labels-only (no arming, no real-actor token) with `uat: 'off'`, matching
+`skip-uat`: it keeps each PR's lifecycle labels current and marks every PR
+`no UAT needed`. `bot-automerge.yml` still does the merging.
+
 ## Agent Directive Files
 
 Directives for AI coding agents live in **`AGENTS.md`** — the single source of
