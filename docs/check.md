@@ -108,6 +108,13 @@ another (#121). Unlike `FIREBASE_SA_EMAIL`, `FIREBASE_PROJECT_ID` is **not**
 deprecated: init resolves the project from the target's own declared value
 (#127), so a matching committed value is required, not flagged — only drift is.
 
+Finally, it checks that every declared
+[GitHub Actions secret](secrets-rotation.md#github-actions-secrets) exists, via
+`gh secret list`. A missing secret is an **error** (`kind: "github-missing"`).
+GitHub secret values are write-only, so only presence is checked, not the
+value. If a repo or environment's secrets can't be listed, for example because
+`gh` is unauthenticated, that's a **warning** (`kind: "github-unavailable"`).
+
 ## Machine-readable output (`--json`)
 
 `--json` replaces the human report with a JSON array on stdout, one object per

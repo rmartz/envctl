@@ -37,6 +37,26 @@ export interface DeploymentDecl {
   readonly targets: Readonly<Record<string, string>>;
 }
 
+/**
+ * A deployed variable mirrored to a GitHub Actions secret (#198): whenever
+ * envctl pushes `variable` to `environment`'s target, it also writes the value
+ * to the secret `name` (default: the variable name).
+ */
+export interface GithubSecretDecl {
+  readonly variable: string;
+  readonly environment: string;
+  readonly name?: string;
+  /** GitHub Actions environment to scope the secret to; unset ⇒ repository. */
+  readonly githubEnvironment?: string;
+}
+
+/** The secondary GitHub Actions secret sink. */
+export interface GithubDecl {
+  /** `owner/name`; unset ⇒ gh resolves the repo from the working directory. */
+  readonly repo?: string;
+  readonly secrets: readonly GithubSecretDecl[];
+}
+
 /** A scoped bundle of project-owned variables. */
 export interface VariableGroup {
   readonly name: string;
@@ -57,6 +77,8 @@ export interface ResolvedManifest {
    * env name → { variable name → literal value }.
    */
   readonly overlays: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  /** GitHub Actions secrets to mirror pushed values to; unset ⇒ none. */
+  readonly github?: GithubDecl;
 }
 
 export type Visibility = "public" | "secret";

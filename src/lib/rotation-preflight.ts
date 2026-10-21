@@ -1,4 +1,4 @@
-import { gcpAuthState, sentryAuthState } from "./auth";
+import { gcpAuthState, githubAuthState, sentryAuthState } from "./auth";
 import { err } from "./logger";
 import { commandExists, run as runCmd } from "./subprocess";
 
@@ -7,6 +7,8 @@ import { commandExists, run as runCmd } from "./subprocess";
 export interface ProviderSet {
   firebase: boolean;
   sentry: boolean;
+  /** Whether the run will mirror values to GitHub Actions secrets (#198). */
+  github?: boolean;
   /** Sentry org slug — falls back to SENTRY_ORG env var. */
   sentryOrg?: string;
   /** Sentry project slug — falls back to SENTRY_PROJECT env var. */
@@ -53,6 +55,10 @@ export function assertProviderAuth(providers: ProviderSet): void {
     if (!project)
       missing.push("sentry — set SENTRY_PROJECT (Sentry project slug)");
   }
+  if (providers.github && !githubAuthState().authenticated)
+    missing.push(
+      "github (Actions secrets) — set GH_TOKEN or run `gh auth login`",
+    );
 
   if (missing.length > 0)
     err(

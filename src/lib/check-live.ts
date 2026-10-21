@@ -10,6 +10,7 @@ import {
   checkFirebaseSaDrift,
 } from "./check-firebase";
 import { deploymentDir } from "./commands/deployment-config";
+import { checkGithubSecrets, resolveGithubSecrets } from "./github-secrets";
 import { parseManifest } from "./manifest";
 import type { DeploymentProvider } from "./providers/deployment";
 import { resolveProjectDeployment } from "./providers/registry";
@@ -56,5 +57,7 @@ export async function checkLive(workingDir: string): Promise<Finding[]> {
   findings.push(
     ...(await checkFirebaseProjectDrift(deployment, configDir, live)),
   );
+  // Declared GitHub Actions secrets must exist (#198); values are write-only.
+  findings.push(...checkGithubSecrets(resolveGithubSecrets(configDir)));
   return findings;
 }
