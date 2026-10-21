@@ -45,6 +45,16 @@ variableGroups:
     environments: [production]
     variables:
       ANALYTICS_WRITE_KEY: { generate: true }
+
+github: # mirror pushed values to GitHub Actions secrets (#198)
+  repo: acme/app # optional; default: the working directory's repo
+  secrets:
+    - variable: CRON_SECRET
+      environment: production
+    - variable: FB_PRIVATE_KEY
+      environment: staging
+      name: STAGING_FB_PRIVATE_KEY # optional; default: the variable name
+      githubEnvironment: e2e # optional; default: a repository secret
 ```
 
 ```yaml
@@ -77,6 +87,10 @@ resolved model:
   [credential contract](secrets-rotation.md#firebase-credential-contract)),
   `variables` and `variableGroups` (each variable carrying its `source`
   discriminant), plus the per-env `overlays` read from `deployment/{env}.yml`.
+  An optional `github` block declares the
+  [GitHub Actions secrets](secrets-rotation.md#github-actions-secrets) that
+  pushed values are mirrored to. Entries missing `variable` or `environment`
+  are dropped.
 - **Legacy back-compat** — with no `manifest.yml`, the legacy `environments.yml`
   (`active:` list) and flat per-env value files map onto the same model: each env
   defaulted through `vercelTarget()` under a single implicit `vercel` deployment,

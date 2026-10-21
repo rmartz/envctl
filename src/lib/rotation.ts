@@ -8,6 +8,11 @@ import {
   resolveFirebaseCredential,
   type FirebaseCredentialSpec,
 } from "./firebase-credential";
+import {
+  logGithubPlan,
+  resolveGithubSecrets,
+  withGithubSecretSync,
+} from "./github-secrets";
 import { err, log, warn } from "./logger";
 import { parseManifest } from "./manifest";
 import { posthogVarsFor } from "./posthog";
@@ -77,7 +82,19 @@ export async function run(opts: RotationOptions): Promise<void> {
 
   const workingDir = opts.workingDir ?? process.cwd();
   const configDir = opts.deploymentDir ?? deploymentDir(workingDir);
-  const deployment = resolveProjectDeployment(configDir, workingDir);
+  // Values pushed to a target with a declared GitHub secret (#198) are
+  // mirrored there at push time — before the redeploy and invalidation.
+  const runTargets =
+    opts.targetEnv === "all"
+      ? ["production", "preview", "development"]
+      : [opts.targetEnv];
+  const githubTargets = resolveGithubSecrets(configDir).filter((t) =>
+    runTargets.includes(t.target),
+  );
+  const deployment = withGithubSecretSync(
+    resolveProjectDeployment(configDir, workingDir),
+    githubTargets,
+  );
   log(
     `Project: ${deployment.projectId}${deployment.teamId ? ` (team: ${deployment.teamId})` : ""}`,
   );
@@ -118,10 +135,6 @@ export async function run(opts: RotationOptions): Promise<void> {
   // run's targets is skipped entirely (silently — not acted on); a service that
   // partially overlaps acts only on its in-scope targets (enforced per-target
   // inside init/rotate via `allowedTargets`).
-  const runTargets =
-    opts.targetEnv === "all"
-      ? ["production", "preview", "development"]
-      : [opts.targetEnv];
   const scopeFor = (p: ServiceProvider): string[] | undefined =>
     serviceScopeTargets(configDir, p.provider);
   const inScope = (p: ServiceProvider): boolean => {
@@ -175,9 +188,11 @@ export async function run(opts: RotationOptions): Promise<void> {
   assertProviderAuth({
     firebase: acting.some((p) => p.authKey === "firebase"),
     sentry: acting.some((p) => p.authKey === "sentry"),
+    github: acting.length > 0 && githubTargets.length > 0,
     sentryOrg: opts.sentryOrg,
     sentryProject: opts.sentryProject,
   });
+  logGithubPlan(githubTargets);
 
   log(
     `Target: ${opts.targetEnv} | ${opts.init ? "Initializing" : `Invalidate after redeployment: ${opts.invalidateKeys}`}`,

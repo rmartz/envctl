@@ -10,6 +10,7 @@ import {
   resolveGeneratedSecrets,
   type GeneratedSecret,
 } from "../generated-secrets";
+import { resolveGithubSecrets, withGithubSecretSync } from "../github-secrets";
 import { parseManifest } from "../manifest";
 import { listActiveEnvs, parseDeploymentEnv } from "../environments";
 import { err, log } from "../logger";
@@ -19,6 +20,7 @@ import { posthogManualSteps, posthogVarsFor } from "../posthog";
 import { serviceProviders, type ServiceContext } from "../providers/service";
 import { detectProject } from "../project";
 import { run as rotateKeysRun } from "../rotation";
+import { assertProviderAuth } from "../rotation-preflight";
 import { envTargetResolver } from "../targets";
 import { VercelClient } from "../vercel-api";
 import {
@@ -59,6 +61,7 @@ async function dispatchRotation(
         targetEnv: "all",
         invalidateKeys,
         workingDir,
+        deploymentDir,
         init: "sentry",
         sentryOrg: vars.SENTRY_ORG || undefined,
         sentryProject: vars.SENTRY_PROJECT || undefined,
@@ -75,6 +78,7 @@ async function dispatchRotation(
           targetEnv: target,
           invalidateKeys,
           workingDir,
+          deploymentDir,
           init: "firebase",
           firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
           gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
@@ -88,6 +92,7 @@ async function dispatchRotation(
           targetEnv: "development",
           invalidateKeys,
           workingDir,
+          deploymentDir,
           init: "firebase",
           firebaseSaEmail: vars.FIREBASE_SA_EMAIL || undefined,
           gcpProject: vars.FIREBASE_PROJECT_ID || undefined,
@@ -109,6 +114,7 @@ async function dispatchRotation(
     targetEnv: targetEnv === "all" ? "all" : resolveTarget(targetEnv),
     invalidateKeys,
     workingDir,
+    deploymentDir,
     init,
     // provider scopes rotate mode only; it is inert when init is set.
     provider: init ? undefined : opts.provider,
@@ -154,14 +160,23 @@ async function runWithGeneratedSecrets(
   firebaseCredential: FirebaseCredentialSpec,
   generated: GeneratedSecret[],
 ): Promise<void> {
-  const deployment = resolveProjectDeployment(
-    opts.deploymentDir,
-    opts.workingDir,
-  );
   const runTarget =
     opts.targetEnv === "all"
       ? "all"
       : envTargetResolver(opts.deploymentDir)(opts.targetEnv);
+  // Generated values with a declared GitHub secret are mirrored too (#198);
+  // assert gh auth before anything is minted.
+  const githubTargets = resolveGithubSecrets(opts.deploymentDir).filter(
+    (t) =>
+      (runTarget === "all" || t.target === runTarget) &&
+      generated.some((g) => g.name === t.variable),
+  );
+  if (githubTargets.length > 0)
+    assertProviderAuth({ firebase: false, sentry: false, github: true });
+  const deployment = withGithubSecretSync(
+    resolveProjectDeployment(opts.deploymentDir, opts.workingDir),
+    githubTargets,
+  );
 
   const wrote = await pushGeneratedSecrets(deployment, generated, {
     overwrite: !isInit,

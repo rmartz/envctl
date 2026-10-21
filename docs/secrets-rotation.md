@@ -3,7 +3,7 @@ type: Subsystem
 title: Secrets rotation engine
 description: How envctl atomically mints, deploys, verifies, and invalidates Firebase and Sentry credentials.
 resource: src/lib/rotation.ts
-tags: [secrets, rotation, firebase, sentry, posthog, vercel, atomicity]
+tags: [secrets, rotation, firebase, sentry, posthog, vercel, github, atomicity]
 ---
 
 # Secrets rotation engine
@@ -221,6 +221,41 @@ variables inherit their container's scope and cannot override it; ungrouped
 top-level variables default to all environments. Variable-group scoping for
 [generated secrets](#generated-secrets) works the same way (`group.environments`).
 
+## GitHub Actions secrets
+
+CI often needs a value envctl manages, such as a Firebase credential for e2e
+tests or a generated `CRON_SECRET`. A project declares those in the manifest's
+`github` block ([schema](manifest.md#the-model)), and envctl copies each value
+to a GitHub Actions secret whenever it pushes that variable to the declared
+environment's target (#198):
+
+```yaml
+github:
+  repo: acme/app # optional; default: the working directory's repo
+  secrets:
+    - variable: FIREBASE_PRIVATE_KEY
+      environment: staging
+      name: STAGING_FIREBASE_PRIVATE_KEY # optional; default: the variable name
+      githubEnvironment: e2e # optional; default: a repository secret
+```
+
+[`github-secrets.ts`](../src/lib/github-secrets.ts) wraps the deployment
+provider so every `setEnvForTarget` write, which is the path all provider and
+generated secrets take, is followed by `gh secret set` for each matching
+declaration. The value goes in on stdin, so it never appears in the process
+list.
+
+- **Order.** The GitHub write happens at push time, after the Vercel write and
+  before the redeploy and invalidation. If it fails, the run stops while the
+  old credential is still valid.
+- **Auth.** `gh` must be authenticated (`GH_TOKEN`, `GITHUB_TOKEN`, or
+  `gh auth login`). The preflight checks this before anything is minted,
+  whenever a declared secret's target is in the run.
+- **Plan.** The run logs each GitHub secret it will update before minting.
+- **Verification.** GitHub secrets can't be read back, so "proven working"
+  only means the write succeeded. [`check --live`](check.md) reports a declared
+  secret that's missing.
+
 ## PostHog (manual rotation)
 
 PostHog's only secret is the optional `POSTHOG_PERSONAL_API_KEY` (server-side
@@ -263,6 +298,9 @@ for the providers the run will act on**, after presence detection and any
 - `SENTRY_AUTH_TOKEN` (or `sentry-cli login` session), for any Sentry flow.
 - `SENTRY_ORG` / `SENTRY_PROJECT` — required for any Sentry rotation or
   initialization (to query and create keys); also required for key **invalidation**.
+- **`gh`** authenticated (`GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth login`), when
+  the manifest declares a [GitHub Actions secret](#github-actions-secrets) on a
+  target the run writes.
 
 Run `envctl auth status` to confirm every provider's credential resolves before
 starting.

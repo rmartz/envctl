@@ -10,6 +10,8 @@ import {
 } from "../environments";
 import type {
   DeploymentDecl,
+  GithubDecl,
+  GithubSecretDecl,
   ResolvedManifest,
   ServiceDecl,
   VariableDecl,
@@ -119,6 +121,28 @@ function parseVariableGroups(raw: unknown): VariableGroup[] {
   return out;
 }
 
+// An entry without both `variable` and `environment` has nothing to mirror, so
+// it is dropped like any other malformed item.
+function parseGithub(raw: unknown): GithubDecl | undefined {
+  if (!isRecord(raw)) return undefined;
+  const secrets: GithubSecretDecl[] = [];
+  for (const item of Array.isArray(raw.secrets) ? raw.secrets : []) {
+    if (!isRecord(item)) continue;
+    const { variable, environment, name, githubEnvironment } = item;
+    if (typeof variable !== "string" || typeof environment !== "string")
+      continue;
+    secrets.push({
+      variable,
+      environment,
+      ...(typeof name === "string" ? { name } : {}),
+      ...(typeof githubEnvironment === "string" ? { githubEnvironment } : {}),
+    });
+  }
+  return typeof raw.repo === "string"
+    ? { repo: raw.repo, secrets }
+    : { secrets };
+}
+
 // Per-environment overlay files hold only literal `value` overrides. They share
 // the legacy per-env file format (flat or nested `variables:`), so they parse
 // through the existing reader.
@@ -159,6 +183,7 @@ interface RawManifest {
   services?: unknown;
   variables?: unknown;
   variableGroups?: unknown;
+  github?: unknown;
 }
 
 function parseManifestFile(
@@ -177,6 +202,7 @@ function parseManifestFile(
       : fs.existsSync(path.join(deploymentDir, "environments.yml"))
         ? listActiveEnvs(deploymentDir)
         : [];
+  const github = parseGithub(raw.github);
   return {
     environments,
     deployments: parseDeployments(raw.deployments),
@@ -184,6 +210,7 @@ function parseManifestFile(
     variables: parseVariables(raw.variables),
     variableGroups: parseVariableGroups(raw.variableGroups),
     overlays: readOverlays(deploymentDir, environments),
+    ...(github ? { github } : {}),
   };
 }
 

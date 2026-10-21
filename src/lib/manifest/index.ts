@@ -1,5 +1,7 @@
 export type {
   DeploymentDecl,
+  GithubDecl,
+  GithubSecretDecl,
   ResolvedManifest,
   ServiceDecl,
   VariableDecl,

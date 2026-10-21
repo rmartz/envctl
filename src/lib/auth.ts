@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { commandExists, run as runCmd } from "./subprocess";
+import { commandExists, run as runCmd, runStatus } from "./subprocess";
 
 interface VercelAuth {
   token?: string;
@@ -121,6 +121,18 @@ export function sentryAuthState(): AuthState {
   if (readSentryClircToken())
     return { authenticated: true, source: "sentry-cli login (~/.sentryclirc)" };
   return { authenticated: false };
+}
+
+// GitHub auth is owned by the gh CLI, which honors GH_TOKEN / GITHUB_TOKEN
+// before its own `gh auth login` session.
+export function githubAuthState(): AuthState {
+  for (const name of ["GH_TOKEN", "GITHUB_TOKEN"])
+    if (process.env[name])
+      return { authenticated: true, source: `${name} env var` };
+  if (!commandExists("gh")) return { authenticated: false };
+  return runStatus("gh", ["auth", "status"]).status === 0
+    ? { authenticated: true, source: "gh auth login" }
+    : { authenticated: false };
 }
 
 // GCP auth is owned entirely by the gcloud CLI; report the active account via a
