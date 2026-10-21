@@ -1,6 +1,7 @@
 import {
   type AuthState,
   gcpAuthState,
+  githubAuthState,
   sentryAuthState,
   vercelAuthState,
 } from "../auth";
@@ -14,7 +15,8 @@ interface ProviderReport {
 
 // `envctl auth status` — read-only report of each provider's credential state
 // and source. envctl stores nothing itself; writing credentials is delegated to
-// the providers' own CLIs (vercel login / gcloud auth login / sentry-cli login).
+// the providers' own CLIs (vercel login / gcloud auth login / sentry-cli login /
+// gh auth login).
 export function runAuthStatus(): void {
   const reports: ProviderReport[] = [
     {
@@ -31,6 +33,11 @@ export function runAuthStatus(): void {
       name: "sentry",
       state: sentryAuthState(),
       hint: "set SENTRY_AUTH_TOKEN or run `sentry-cli login`",
+    },
+    {
+      name: "github",
+      state: githubAuthState(),
+      hint: "set GH_TOKEN or run `gh auth login`",
     },
   ];
 

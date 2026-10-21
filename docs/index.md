@@ -34,7 +34,8 @@ Format (OKF). One page per script or subsystem.
   environment for local testing (`config pull`; the inverse of `config push`).
 - [Secrets rotation engine](secrets-rotation.md) — atomically minting,
   deploying, verifying, and invalidating Firebase and Sentry credentials
-  (`secrets rotate` / `secrets init`), plus PostHog's manual rotation.
+  (`secrets rotate` / `secrets init`), plus PostHog's manual rotation and
+  mirroring values to GitHub Actions secrets.
 - [Config validation](check.md) — read-only checks that a project's deployment
   manifest is coherent and deployable, with an optional live completeness check
   — missing, orphaned, and colliding variables per target (`check` /
