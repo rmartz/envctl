@@ -2,6 +2,7 @@ import * as fs from "fs";
 
 import { mkError, mkWarning, type Finding } from "./check";
 import { resolveFirebaseCredential } from "./firebase-credential";
+import { GITHUB_APP_PROVIDER, resolveGithubAppVars } from "./github-app";
 import { manifestFilePath, type ResolvedManifest } from "./manifest";
 import { resolvePosthogVars } from "./posthog";
 import type { DeploymentProvider } from "./providers/deployment";
@@ -48,6 +49,14 @@ export function checkServiceContext(
     posthogVars: resolvePosthogVars(
       manifest.services.find((s) => s.provider === "posthog"),
     ),
+    githubApp: {
+      declared: manifest.services.some(
+        (s) => s.provider === GITHUB_APP_PROVIDER,
+      ),
+      vars: resolveGithubAppVars(
+        manifest.services.find((s) => s.provider === GITHUB_APP_PROVIDER),
+      ),
+    },
   };
 }
 

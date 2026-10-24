@@ -10,6 +10,7 @@ import {
   resolveGeneratedSecrets,
   type GeneratedSecret,
 } from "../generated-secrets";
+import { githubAppConfigFor } from "../github-app";
 import { resolveGithubSecrets, withGithubSecretSync } from "../github-secrets";
 import { parseManifest } from "../manifest";
 import { listActiveEnvs, parseDeploymentEnv } from "../environments";
@@ -45,15 +46,27 @@ export type { SecretsOptions };
 // requested environment (rotation auto-detects services from existing keys).
 async function dispatchRotation(
   opts: SecretsOptions,
-  init: "all" | "firebase" | "sentry" | "posthog" | undefined,
+  init: SecretsOptions["provider"] | "all" | undefined,
   envList: string[],
   devSource: string | undefined,
   firebaseCredential: FirebaseCredentialSpec,
 ): Promise<void> {
   const { deploymentDir, invalidateKeys, workingDir, targetEnv } = opts;
   const resolveTarget = envTargetResolver(deploymentDir);
+  const { githubAppPrivateKeyFile } = opts;
 
   if (init && targetEnv === "all") {
+    // A GitHub App has one webhook config, so it is initialized once across
+    // every target its service is scoped to.
+    if (init === "github-app")
+      await rotateKeysRun({
+        targetEnv: "all",
+        invalidateKeys,
+        workingDir,
+        deploymentDir,
+        init,
+        githubAppPrivateKeyFile,
+      });
     if (init === "sentry" || init === "all") {
       const source = sentrySourceEnv("all", envList, devSource);
       const vars = source ? parseDeploymentEnv(deploymentDir, source) : {};
@@ -123,6 +136,7 @@ async function dispatchRotation(
     firebaseCredential,
     sentryOrg: vars.SENTRY_ORG || undefined,
     sentryProject: vars.SENTRY_PROJECT || undefined,
+    githubAppPrivateKeyFile,
   });
 }
 
@@ -132,6 +146,7 @@ async function dispatchRotation(
 async function anyServicePresent(
   deployment: DeploymentProvider,
   firebaseCredential: FirebaseCredentialSpec,
+  deploymentDir: string,
 ): Promise<boolean> {
   const keys = new Set((await deployment.listEnvVars()).envs.map((e) => e.key));
   const ctx: ServiceContext = {
@@ -139,6 +154,7 @@ async function anyServicePresent(
     deployment,
     tempDir: "",
     firebaseCredential,
+    githubApp: githubAppConfigFor(deploymentDir),
   };
   // Manual-only providers (manualSteps) never give the engine work to do.
   return serviceProviders().some(
@@ -153,7 +169,7 @@ async function anyServicePresent(
 // provider work), a redeploy is triggered here instead.
 async function runWithGeneratedSecrets(
   opts: SecretsOptions,
-  init: "all" | "firebase" | "sentry" | "posthog" | undefined,
+  init: SecretsOptions["provider"] | "all" | undefined,
   isInit: boolean,
   envList: string[],
   devSource: string | undefined,
@@ -185,7 +201,11 @@ async function runWithGeneratedSecrets(
 
   const providerWork = isInit
     ? init !== undefined
-    : await anyServicePresent(deployment, firebaseCredential);
+    : await anyServicePresent(
+        deployment,
+        firebaseCredential,
+        opts.deploymentDir,
+      );
 
   if (providerWork) {
     await dispatchRotation(opts, init, envList, devSource, firebaseCredential);
@@ -225,10 +245,10 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
       envList,
       devSource,
     );
-    if (!configured.firebase && !configured.sentry) {
+    if (!configured.firebase && !configured.sentry && !configured.githubApp) {
       if (generated.length === 0)
         err(
-          "secrets init: nothing to initialize — no Firebase or Sentry public config vars found in the deployment config",
+          "secrets init: nothing to initialize — no Firebase or Sentry public config vars or github-app service found in the deployment config",
         );
       init = undefined;
     } else {

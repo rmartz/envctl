@@ -77,10 +77,13 @@ function parseServices(raw: unknown): ServiceDecl[] {
       provider: string;
       environments?: string[];
       variables?: Record<string, string>;
+      webhookUrl?: string;
     } = { provider: item.provider };
     if ("environments" in item)
       service.environments = asStringArray(item.environments);
     if ("variables" in item) service.variables = parseStringMap(item.variables);
+    if (typeof item.webhookUrl === "string")
+      service.webhookUrl = item.webhookUrl;
     out.push(service);
   }
   return out;

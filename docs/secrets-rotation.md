@@ -1,9 +1,20 @@
 ---
 type: Subsystem
 title: Secrets rotation engine
-description: How envctl atomically mints, deploys, verifies, and invalidates Firebase and Sentry credentials.
+description: How envctl atomically mints, deploys, verifies, and invalidates Firebase, Sentry and GitHub App credentials.
 resource: src/lib/rotation.ts
-tags: [secrets, rotation, firebase, sentry, posthog, vercel, github, atomicity]
+tags:
+  [
+    secrets,
+    rotation,
+    firebase,
+    sentry,
+    posthog,
+    github-app,
+    vercel,
+    github,
+    atomicity,
+  ]
 ---
 
 # Secrets rotation engine
@@ -21,8 +32,8 @@ are a separate concern — see [config-push](config-push.md).
 ## Commands
 
 ```bash
-envctl secrets rotate [firebase|sentry] [OPTS] # rotate existing secrets
-envctl secrets init [firebase|sentry] [OPTS]   # bootstrap secrets for a fresh project
+envctl secrets rotate [firebase|sentry|posthog|github-app] [OPTS] # rotate existing secrets
+envctl secrets init [firebase|sentry|posthog|github-app] [OPTS]   # bootstrap secrets for a fresh project
 ```
 
 Both accept `--env <name|development|all>` (default `all`), `--deployment-dir <path>`
@@ -89,13 +100,17 @@ requested target:
    already saved on the target and apply on its next successful build, so the run
    warns and continues rather than aborting. Only a genuine `ERROR` (or a poll
    timeout) fails the run.
-3. **Invalidate the old credential** (unless `--no-invalidate`). Firebase sweeps
+3. **Activate** — work a provider defers until its new value is live. Only
+   the [GitHub App](#github-app) uses it: it points the App's webhook at the
+   new secret. It runs even with `--no-invalidate`, and never after a failed
+   step.
+4. **Invalidate the old credential** (unless `--no-invalidate`). Firebase sweeps
    stray user-managed keys for the service account via
    `invalidateFirebaseKeys`; Sentry deletes the captured old key id. With
    `--no-invalidate`, the old keys are **kept** and printed so they can be
    removed by hand later.
 
-`init` runs steps 1–2 only (there is no prior key to retire) and then reports
+`init` runs steps 1–3 only (there is no prior key to retire) and then reports
 completion.
 
 > **Verification depth.** Today "proven working" means the redeploy reached
@@ -280,6 +295,67 @@ The public project key and host aren't secrets. They live in
 `deployment/{env}.yml` and are pushed by [`config push`](config-push.md), which
 refuses when two environments share a project key.
 
+## GitHub App
+
+The `github-app` provider (#201) manages a Vercel-hosted GitHub App server's
+two secrets, the App private key and the webhook secret, and keeps the App's
+webhook config on GitHub in step with them. Declare it in `manifest.yml`:
+
+```yaml
+services:
+  - provider: github-app
+    environments: [production] # optional scope
+    webhookUrl: https://my-app.vercel.app/api/webhook
+    variables: # optional renames; defaults shown in the table
+      clientId: PR_LIFECYCLE_CLIENT_ID
+      privateKey: PR_LIFECYCLE_PRIVATE_KEY
+      webhookSecret: PR_LIFECYCLE_WEBHOOK_SECRET
+```
+
+| Field           | Default var                 | Kind                                       |
+| --------------- | --------------------------- | ------------------------------------------ |
+| `clientId`      | `GITHUB_APP_CLIENT_ID`      | public, in `deployment/{env}.yml`          |
+| `privateKey`    | `GITHUB_APP_PRIVATE_KEY`    | secret, pushed as a Vercel sensitive var   |
+| `webhookSecret` | `GITHUB_APP_WEBHOOK_SECRET` | secret, generated, pushed as sensitive too |
+
+The Client ID is a public literal pushed by [`config push`](config-push.md).
+envctl also reads it from the deployment config of an in-scope environment and
+signs the App JWT with it as the `iss`. GitHub accepts the Client ID there in
+place of the numeric App ID.
+
+- **`secrets init github-app --private-key-file <pem>`** reads the private key
+  from the PEM file and mints a webhook secret (the
+  [generated-secret](#generated-secrets) format). It pushes both to every
+  in-scope target as sensitive vars (encrypted on `development`, where Vercel
+  has no sensitive type), redeploys, then sets the App's webhook URL and secret
+  with `PATCH /app/hook/config`. The key is only ever read from the file: it is
+  never taken from argv or the environment, and never echoed or logged. A
+  missing file or a file that isn't an RSA private key PEM fails the
+  preflight.
+- **`secrets rotate github-app --private-key-file <pem>`** rotates the webhook
+  secret in this order: mint, push to Vercel, redeploy until `READY`, then
+  `PATCH /app/hook/config`. If any earlier step fails, GitHub keeps the old
+  secret. Between the redeploy and the PATCH, deliveries signed with the old
+  secret are rejected; redeliver them from the App's Advanced settings page if
+  needed. The PEM is needed only to sign the JWT.
+- **The private key is rotated by hand.** GitHub has no API to create an App
+  private key; keys are generated only on the App's settings page. Every
+  rotate that touches the App prints these steps as a warning: generate a new
+  key, replace the var with `vercel env rm` / `vercel env add … --sensitive`,
+  redeploy, then delete the old key on the settings page.
+- An unscoped `secrets rotate` includes the webhook secret when it is present
+  (so it also needs `--private-key-file`). Auto-detecting `secrets init`
+  selects `github-app` only when the manifest declares the service. `init all`
+  never selects it: it means Firebase and Sentry.
+- The preflight fails, before anything is minted, when `--private-key-file`,
+  the Client ID, or `webhookUrl` is missing.
+- Recovering from a failed `init`: once the vars exist, a re-run of `init`
+  refuses, so finish with `secrets rotate github-app`, which re-mints the
+  webhook secret and PATCHes GitHub.
+
+Out of scope: GitHub doesn't let an API change an App's permissions or event
+subscriptions after it's created. Set those on the App's settings page.
+
 ## Prerequisites
 
 Vercel is checked by `checkVercelPrereqs`
@@ -298,6 +374,8 @@ for the providers the run will act on**, after presence detection and any
 - `SENTRY_AUTH_TOKEN` (or `sentry-cli login` session), for any Sentry flow.
 - `SENTRY_ORG` / `SENTRY_PROJECT` — required for any Sentry rotation or
   initialization (to query and create keys); also required for key **invalidation**.
+- `--private-key-file`, a Client ID in the deployment config, and the
+  service's `webhookUrl`, for any [GitHub App](#github-app) flow.
 - **`gh`** authenticated (`GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth login`), when
   the manifest declares a [GitHub Actions secret](#github-actions-secrets) on a
   target the run writes.
@@ -309,11 +387,12 @@ starting.
 
 | Flag                             | Effect                                                                                           |
 | -------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `firebase` \| `sentry`           | Positional. Scope the run to one provider (rotate) / pick the init target. Default: all present. |
+| `firebase` \| `sentry` \| …      | Positional. Scope the run to one provider (rotate) / pick the init target. Default: all present. |
 | `--env <name\|development\|all>` | Which deploy environment(s) to act on (default `all`).                                           |
 | `--deployment-dir <path>`        | Deployment config directory, resolved against the project root (default `deployment`).           |
 | `--no-invalidate`                | Keep the old keys after the redeploy; print them for manual cleanup.                             |
 | `--refresh-previews`             | After rotation, redeploy active PR previews so their warm instances pick up the new credential.  |
+| `--private-key-file <path>`      | GitHub App private key PEM, resolved against the shell's cwd. Required for `github-app`.         |
 
 ## Related
 

@@ -7,11 +7,12 @@ import {
 } from "../../lib/providers/service";
 
 describe("service provider registry", () => {
-  it("lists firebase, sentry, then posthog (order drives the rotation sequence)", () => {
+  it("lists firebase, sentry, posthog, then github-app (order drives the rotation sequence)", () => {
     expect(serviceProviders().map((p) => p.provider)).toEqual([
       "firebase",
       "sentry",
       "posthog",
+      "github-app",
     ]);
   });
 

@@ -21,13 +21,17 @@ export interface SecretsOptions {
   refreshPreviews: boolean;
   // Bootstrap mode: undefined = rotate existing secrets; "auto" = detect from
   // deployment config; otherwise the specific service to initialize.
-  init?: "all" | "auto" | "firebase" | "sentry" | "posthog";
+  init?: "all" | "auto" | "firebase" | "sentry" | "posthog" | "github-app";
   // Rotate mode only: restrict the run to a single provider (the leading
-  // firebase|sentry|posthog positional). Undefined rotates every present provider.
-  provider?: "firebase" | "sentry" | "posthog";
+  // firebase|sentry|posthog|github-app positional). Undefined rotates every
+  // present provider.
+  provider?: "firebase" | "sentry" | "posthog" | "github-app";
+  // `--private-key-file`: the GitHub App private key PEM (#201). The path is
+  // the only thing envctl takes on the command line; the key is read from it.
+  githubAppPrivateKeyFile?: string;
 }
 
-export const ROTATE_USAGE = `Usage: envctl secrets rotate [firebase|sentry|posthog] [OPTIONS]
+export const ROTATE_USAGE = `Usage: envctl secrets rotate [firebase|sentry|posthog|github-app] [OPTIONS]
 
 Atomically rotate provider secrets: mint the new credential, redeploy, verify
 it, then invalidate the old one — so the project is never left without a working
@@ -37,11 +41,13 @@ project. Auth for every provider to be rotated is checked up front, so an
 unauthenticated provider fails fast instead of leaving a partial rotation.
 
 ARGUMENTS:
-  firebase | sentry | posthog
+  firebase | sentry | posthog | github-app
                            Restrict the rotation to a single provider
                            (default: every provider present in the project).
                            PostHog's personal API key is rotated by hand —
-                           naming it prints the manual steps
+                           naming it prints the manual steps. github-app
+                           rotates the webhook secret; its private key is
+                           rotated by hand (the steps are printed)
 
 OPTIONS:
   --env <name>             Environment to rotate (a name from environments.yml,
@@ -50,16 +56,19 @@ OPTIONS:
                            against the project root (default: deployment)
   --no-invalidate          Keep the old keys after the redeploy
   --refresh-previews       Redeploy active PR previews after rotation
+  --private-key-file <path>
+                           GitHub App private key PEM, used to sign the App
+                           JWT (required when github-app is rotated)
   -h, --help               Show this help`;
 
-export const INIT_USAGE = `Usage: envctl secrets init [firebase|sentry|posthog] [OPTIONS]
+export const INIT_USAGE = `Usage: envctl secrets init [firebase|sentry|posthog|github-app] [OPTIONS]
 
 Bootstrap provider secrets for a fresh project (implies a rotation). Omit the
 service to auto-detect which to initialize from the deployment config. Fails if
 the target secrets already exist in the Vercel project.
 
 ARGUMENTS:
-  firebase | sentry | posthog
+  firebase | sentry | posthog | github-app
                            Service to initialize (default: auto-detect).
                            PostHog is manual-only — naming it prints the steps
 
@@ -69,6 +78,9 @@ OPTIONS:
                            against the project root (default: deployment)
   --no-invalidate          Keep the old keys after the redeploy
   --refresh-previews       Redeploy active PR previews after initialization
+  --private-key-file <path>
+                           GitHub App private key PEM to push and sign the App
+                           JWT with (required for github-app)
   -h, --help               Show this help`;
 
 // Parses `secrets rotate` / `secrets init` args (the global -C/--working-dir
@@ -87,6 +99,7 @@ export function parseSecretsArgs(
   let init: SecretsOptions["init"] = isInit ? "auto" : undefined;
   let provider: SecretsOptions["provider"];
   let providerTargetSet = false;
+  let githubAppPrivateKeyFile: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -97,6 +110,10 @@ export function parseSecretsArgs(
     } else if (arg === "--deployment-dir") {
       deploymentDir = args[++i] ?? err("--deployment-dir requires a path");
       if (!deploymentDir) err("--deployment-dir requires a path");
+    } else if (arg === "--private-key-file") {
+      githubAppPrivateKeyFile =
+        args[++i] ?? err("--private-key-file requires a path");
+      if (!githubAppPrivateKeyFile) err("--private-key-file requires a path");
     } else if (arg === "--no-invalidate") {
       invalidateKeys = false;
     } else if (arg === "--refresh-previews") {
@@ -106,7 +123,10 @@ export function parseSecretsArgs(
       process.exit(0);
     } else if (
       !providerTargetSet &&
-      (arg === "firebase" || arg === "sentry" || arg === "posthog")
+      (arg === "firebase" ||
+        arg === "sentry" ||
+        arg === "posthog" ||
+        arg === "github-app")
     ) {
       // A leading firebase|sentry|posthog positional selects the init target in init
       // mode, or scopes the rotation to that provider in rotate mode.
@@ -127,5 +147,9 @@ export function parseSecretsArgs(
     refreshPreviews,
     init,
     provider,
+    // A file the user names resolves against the shell's cwd, not -C.
+    ...(githubAppPrivateKeyFile
+      ? { githubAppPrivateKeyFile: path.resolve(githubAppPrivateKeyFile) }
+      : {}),
   };
 }

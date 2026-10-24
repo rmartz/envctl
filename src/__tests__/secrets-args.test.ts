@@ -94,6 +94,23 @@ describe("parseSecretsArgs — init mode", () => {
     expect(parseSecretsArgs(["sentry"], WD, true).init).toBe("sentry");
   });
 
+  it("reads a github-app positional", () => {
+    expect(parseSecretsArgs(["github-app"], WD, true).init).toBe("github-app");
+  });
+
+  it("resolves --private-key-file against the shell's cwd, not -C", () => {
+    expect(
+      parseSecretsArgs(["--private-key-file", "app.pem"], WD, true)
+        .githubAppPrivateKeyFile,
+    ).toBe(path.resolve("app.pem"));
+  });
+
+  it("rejects --private-key-file without a path", () => {
+    expect(() => parseSecretsArgs(["--private-key-file"], WD, true)).toThrow(
+      FatalError,
+    );
+  });
+
   it("combines the positional with flags", () => {
     const opts = parseSecretsArgs(
       ["firebase", "--env", "staging", "--refresh-previews"],

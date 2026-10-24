@@ -28,6 +28,8 @@ export interface ServiceDecl {
    * back to the provider's default name; an empty/absent map ⇒ all defaults.
    */
   readonly variables?: Readonly<Record<string, string>>;
+  /** `github-app` only (#201): the URL the App's webhook is pointed at. */
+  readonly webhookUrl?: string;
 }
 
 /** A provider-typed deployment sink (vercel, …) with its env→target mapping. */

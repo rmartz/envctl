@@ -84,7 +84,9 @@ resolved model:
   `environments`, `deployments` (each with its explicit env→target map),
   `services` (with an optional `environments` scope, and — for `firebase` — an
   optional field→var-name `variables` map that forms the
-  [credential contract](secrets-rotation.md#firebase-credential-contract)),
+  [credential contract](secrets-rotation.md#firebase-credential-contract), and
+  — for `github-app` — a `webhookUrl`; see
+  [GitHub App](secrets-rotation.md#github-app)),
   `variables` and `variableGroups` (each variable carrying its `source`
   discriminant), plus the per-env `overlays` read from `deployment/{env}.yml`.
   An optional `github` block declares the

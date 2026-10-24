@@ -13,6 +13,7 @@ import {
   resolveGithubSecrets,
   withGithubSecretSync,
 } from "./github-secrets";
+import { githubAppConfigFor } from "./github-app";
 import { err, log, warn } from "./logger";
 import { parseManifest } from "./manifest";
 import { posthogVarsFor } from "./posthog";
@@ -20,6 +21,7 @@ import { resolveProjectDeployment } from "./providers/registry";
 import {
   resolveServiceProvider,
   serviceProviders,
+  type ServiceActivation,
   type ServiceContext,
   type ServiceProvider,
   type ServiceRotation,
@@ -51,7 +53,7 @@ export interface RotationOptions {
   workingDir?: string;
   /** Deployment config directory (for resolving the deployment provider). */
   deploymentDir?: string;
-  init?: "all" | "firebase" | "sentry" | "posthog";
+  init?: "all" | "firebase" | "sentry" | "posthog" | "github-app";
   /** SA email for --init firebase. Falls back to FIREBASE_SA_EMAIL env var. */
   firebaseSaEmail?: string;
   /** GCP project ID for --init firebase. Falls back to GCLOUD_PROJECT env var. */
@@ -65,7 +67,9 @@ export interface RotationOptions {
    * positional). Undefined rotates every provider present in the project.
    * Ignored for `init` flows, which scope via {@link RotationOptions.init}.
    */
-  provider?: "firebase" | "sentry" | "posthog";
+  provider?: "firebase" | "sentry" | "posthog" | "github-app";
+  /** Local path to the GitHub App private key PEM (`--private-key-file`). */
+  githubAppPrivateKeyFile?: string;
   /**
    * The resolved Firebase credential contract (shape + var names) from the
    * manifest (#97/#98). Defaults to the provider default (split + default names)
@@ -109,6 +113,7 @@ export async function run(opts: RotationOptions): Promise<void> {
     sentryOrg: opts.sentryOrg,
     sentryProject: opts.sentryProject,
     posthogVars: posthogVarsFor(configDir),
+    githubApp: githubAppConfigFor(configDir, opts.githubAppPrivateKeyFile),
   };
 
   const allEnvs = await deployment.listEnvVars();
@@ -125,9 +130,11 @@ export async function run(opts: RotationOptions): Promise<void> {
   const isPresent = (p: ServiceProvider): boolean =>
     p.presenceKeys(ctx).some((k) => envKeys.includes(k));
   // `init all` covers only the API-automatable providers; a manual-only one
-  // (manualSteps) is reachable only by naming it, which the guard refuses.
+  // (manualSteps) is reachable only by naming it, which the guard refuses, and
+  // an explicit-init one (explicitInit) only by naming it.
   const willInit = (p: ServiceProvider): boolean =>
-    (opts.init === "all" && !p.manualSteps) || opts.init === p.provider;
+    (opts.init === "all" && !p.manualSteps && !p.explicitInit) ||
+    opts.init === p.provider;
   const automatable = providers.filter((p) => !p.manualSteps);
 
   // Environment scoping (#89): the provider targets this run covers, and each
@@ -189,6 +196,9 @@ export async function run(opts: RotationOptions): Promise<void> {
     firebase: acting.some((p) => p.authKey === "firebase"),
     sentry: acting.some((p) => p.authKey === "sentry"),
     github: acting.length > 0 && githubTargets.length > 0,
+    githubApp: acting.some((p) => p.authKey === "github-app")
+      ? ctx.githubApp
+      : undefined,
     sentryOrg: opts.sentryOrg,
     sentryProject: opts.sentryProject,
   });
@@ -202,9 +212,11 @@ export async function run(opts: RotationOptions): Promise<void> {
   ctx.tempDir = tempDir;
   try {
     if (opts.init) {
+      const activations: (ServiceActivation | void)[] = [];
       for (const p of acting)
-        await p.init({ ...ctx, allowedTargets: scopeFor(p) });
+        activations.push(await p.init({ ...ctx, allowedTargets: scopeFor(p) }));
       await deployment.triggerAndWaitRedeployments(opts.targetEnv);
+      for (const activation of activations) await activation?.activate?.();
       log("Key initialization complete.");
     } else {
       const rotations: ServiceRotation[] = [];
@@ -212,6 +224,7 @@ export async function run(opts: RotationOptions): Promise<void> {
         rotations.push(await p.rotate({ ...ctx, allowedTargets: scopeFor(p) }));
 
       await deployment.triggerAndWaitRedeployments(opts.targetEnv);
+      for (const rotation of rotations) await rotation.activate?.();
 
       if (opts.invalidateKeys) {
         log("Invalidating old keys...");

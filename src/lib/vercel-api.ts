@@ -85,7 +85,7 @@ export class VercelClient {
     key: string,
     value: string,
     target: string,
-    type: "plain" | "encrypted" = "plain",
+    type: "plain" | "encrypted" | "sensitive" = "plain",
   ): Promise<VercelEnvVar> {
     return this.request<VercelEnvVar>(
       `/v10/projects/${this.projectId}/env`,
@@ -157,7 +157,7 @@ export class VercelClient {
     value: string,
     target: string,
     allEnvs: VercelEnvVar[],
-    type: "plain" | "encrypted" = "encrypted",
+    type: "plain" | "encrypted" | "sensitive" = "encrypted",
   ): Promise<string> {
     const existing = this.findEnvVar(allEnvs, key, target);
     if (existing) {
