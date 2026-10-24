@@ -62,6 +62,15 @@ export function manifestErrors(manifest: ResolvedManifest): string[] {
           .join(", ")}) — list only one in its services.`,
       );
   }
+  const deploymentNames = new Set(manifest.deployments.map((d) => d.name));
+  for (const secret of manifest.github?.secrets ?? [])
+    if (
+      secret.deployment !== undefined &&
+      !deploymentNames.has(secret.deployment)
+    )
+      errors.push(
+        `GitHub secret for ${secret.variable} names undeclared deployment '${secret.deployment}'.`,
+      );
   return errors;
 }
 
@@ -114,6 +123,18 @@ export function projectView(
     variables: [...root.variables.filter((v) => !ownNames.has(v.name)), ...own],
     variableGroups: root.variableGroups,
     overlays,
-    ...(root.github ? { github: root.github } : {}),
+    // A GitHub secret scoped to another deployment isn't mirrored from this
+    // one (#217).
+    ...(root.github
+      ? {
+          github: {
+            ...root.github,
+            secrets: root.github.secrets.filter(
+              (s) =>
+                s.deployment === undefined || s.deployment === deployment.name,
+            ),
+          },
+        }
+      : {}),
   };
 }

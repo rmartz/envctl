@@ -16,6 +16,7 @@ import {
 import { detectProject, missingSharedPin, projectPin } from "./project";
 import { KNOWN_DEPLOYMENT_PROVIDERS } from "./providers/registry";
 import { serviceProviders } from "./providers/service";
+import { githubSecretAmbiguities } from "./github-secret-scope";
 import { serviceVarCollisions } from "./service-vars";
 import { envTargetResolver } from "./targets";
 
@@ -89,7 +90,12 @@ export function checkStatic(workingDir: string): Finding[] {
     // errors above are what to fix first.
     ...(structural.length > 0
       ? []
-      : checkEachDeployment(workingDir, configDir, manifest, validTargets)),
+      : [
+          ...checkEachDeployment(workingDir, configDir, manifest, validTargets),
+          ...githubSecretAmbiguities(configDir, manifest).map((message) =>
+            mkError(message),
+          ),
+        ]),
   ];
 }
 
