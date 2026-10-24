@@ -88,6 +88,11 @@ describe("deployment views", () => {
     expect(deploymentView(gateDir())).toBeUndefined();
   });
 
+  it("is not a view when the parent's manifest.yml isn't valid YAML", () => {
+    fs.writeFileSync(path.join(root, "manifest.yml"), "key: [unclosed\n");
+    expect(deploymentView(gateDir())).toBeUndefined();
+  });
+
   it("is not a view for a name the parent doesn't declare", () => {
     makeRoot(ROOT);
     expect(deploymentView(path.join(root, "nope"))).toBeUndefined();

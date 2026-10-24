@@ -33,6 +33,20 @@ export function isSafeDeploymentName(name: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name);
 }
 
+// The parsed YAML, or undefined when it doesn't parse. The parent of a
+// deployment dir can hold an unrelated manifest.yml (the repo root's, say), so
+// a parse error there means "not a view" rather than a crash; a broken envctl
+// root manifest still fails loudly when parsed as itself.
+function readYaml(file: string): unknown {
+  const content = fs.readFileSync(file, "utf-8");
+  if (content.trim() === "") return {};
+  try {
+    return parse(content);
+  } catch {
+    return undefined;
+  }
+}
+
 // The view `dir` resolves to, or undefined when it holds its own config (a
 // manifest.yml or legacy environments.yml) or the parent declares no
 // deployment by its name.
@@ -46,8 +60,7 @@ export function deploymentView(dir: string): DeploymentView | undefined {
   const root = path.dirname(resolved);
   const file = path.join(root, MANIFEST);
   if (!fs.existsSync(file)) return undefined;
-  const content = fs.readFileSync(file, "utf-8");
-  const raw: unknown = content.trim() === "" ? {} : parse(content);
+  const raw = readYaml(file);
   if (!isRecord(raw)) return undefined;
   const name = path.basename(resolved);
   const deployments = parseDeployments(raw.deployments);
@@ -69,8 +82,7 @@ export function deploymentView(dir: string): DeploymentView | undefined {
 function legacyActiveEnvs(root: string): string[] {
   const file = path.join(root, "environments.yml");
   if (!fs.existsSync(file)) return [];
-  const content = fs.readFileSync(file, "utf-8");
-  const data: unknown = content.trim() === "" ? {} : parse(content);
+  const data = readYaml(file);
   return isRecord(data) ? asStringArray(data.active) : [];
 }
 
