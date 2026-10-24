@@ -46,8 +46,9 @@ ARGUMENTS:
                            (default: every provider present in the project).
                            PostHog's personal API key is rotated by hand —
                            naming it prints the manual steps. github-app
-                           rotates the webhook secret; its private key is
-                           rotated by hand (the steps are printed)
+                           pushes the --private-key-file key and a new
+                           webhook secret, and proves the key before
+                           pointing the webhook at the new secret
 
 OPTIONS:
   --env <name>             Environment to rotate (a name from environments.yml,
@@ -57,8 +58,9 @@ OPTIONS:
   --no-invalidate          Keep the old keys after the redeploy
   --refresh-previews       Redeploy active PR previews after rotation
   --private-key-file <path>
-                           GitHub App private key PEM, used to sign the App
-                           JWT (required when github-app is rotated)
+                           GitHub App private key PEM: pushed as the App's
+                           key and used to sign the App JWT (required when
+                           github-app is rotated)
   -h, --help               Show this help`;
 
 export const INIT_USAGE = `Usage: envctl secrets init [firebase|sentry|posthog|github-app] [OPTIONS]

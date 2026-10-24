@@ -4,6 +4,10 @@ import * as path from "path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  githubAppKeyFingerprint,
+  readGithubAppPrivateKey,
+} from "../lib/github-app";
 import { run } from "../lib/rotation";
 import { makeGithubAppKeyFile } from "./fixtures";
 
@@ -67,6 +71,7 @@ describe("run — github-app provider", () => {
     keys: string[],
     redeployFails = false,
     hookStatus = 200,
+    appStatus = 200,
   ) {
     const subprocess = await import("../lib/subprocess");
     vi.spyOn(subprocess, "commandExists").mockReturnValue(true);
@@ -100,13 +105,16 @@ describe("run — github-app provider", () => {
           : Promise.resolve();
       },
     );
-    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
       if (init?.method === "PATCH") {
         events.push("patch");
         const body = JSON.parse(init.body as string) as { secret: string };
         patchedSecrets.push(body.secret);
+      } else if ((url as string).endsWith("/app")) {
+        events.push("get app");
+        return Promise.resolve(new Response("{}", { status: appStatus }));
       } else {
-        events.push("get");
+        events.push("get hook");
       }
       return Promise.resolve(new Response("{}", { status: hookStatus }));
     });
@@ -126,10 +134,11 @@ describe("run — github-app provider", () => {
       await mockServices([]);
       await run(opts({ init: "github-app" }));
       expect(events).toEqual([
-        "get",
+        "get hook",
         "push APP_PRIVATE_KEY production sensitive",
         "push APP_WEBHOOK_SECRET production sensitive",
         "redeploy",
+        "get app",
         "patch",
       ]);
     });
@@ -167,24 +176,28 @@ describe("run — github-app provider", () => {
   });
 
   describe("rotate", () => {
-    it("pushes a new webhook secret, redeploys, then PATCHes", async () => {
+    it("pushes the key file and a new secret, redeploys, proves the key, then PATCHes", async () => {
       await mockServices(["APP_PRIVATE_KEY", "APP_WEBHOOK_SECRET"]);
       await run(opts({ provider: "github-app" }));
       expect(events).toEqual([
-        "get",
+        "get hook",
+        "push APP_PRIVATE_KEY production sensitive",
         "push APP_WEBHOOK_SECRET production sensitive",
         "redeploy",
+        "get app",
         "patch",
       ]);
     });
 
-    it("pushes the new secret where only the private key exists", async () => {
+    it("pushes both where only the private key exists", async () => {
       await mockServices(["APP_PRIVATE_KEY"]);
       await run(opts({ provider: "github-app" }));
       expect(events).toEqual([
-        "get",
+        "get hook",
+        "push APP_PRIVATE_KEY production sensitive",
         "push APP_WEBHOOK_SECRET production sensitive",
         "redeploy",
+        "get app",
         "patch",
       ]);
     });
@@ -210,12 +223,28 @@ describe("run — github-app provider", () => {
       expect(new Set(patchedSecrets).size).toBe(2);
     });
 
-    it("prints the private-key manual steps on an unscoped rotate", async () => {
+    it("reports the proven key's fingerprint after the PATCH", async () => {
       await mockServices(["APP_PRIVATE_KEY", "APP_WEBHOOK_SECRET"]);
-      await run(opts({}));
-      expect(console.error).toHaveBeenCalledWith(
-        expect.stringContaining("does not rotate APP_PRIVATE_KEY"),
+      await run(opts({ provider: "github-app" }));
+      const { key } = readGithubAppPrivateKey(keyFile);
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `is now the App key ${githubAppKeyFingerprint(key)}`,
+        ),
       );
+    });
+
+    it("leaves GitHub untouched when the key fails GET /app", async () => {
+      await mockServices(
+        ["APP_PRIVATE_KEY", "APP_WEBHOOK_SECRET"],
+        false,
+        200,
+        401,
+      );
+      await expect(run(opts({ provider: "github-app" }))).rejects.toThrow(
+        /rejected the App JWT/,
+      );
+      expect(events).not.toContain("patch");
     });
   });
 
@@ -252,7 +281,7 @@ describe("run — github-app provider", () => {
       await expect(run(opts({ init: "github-app" }))).rejects.toThrow(
         /webhook is not active/,
       );
-      expect(events).toEqual(["get"]);
+      expect(events).toEqual(["get hook"]);
     });
   });
 });

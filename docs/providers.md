@@ -130,10 +130,12 @@ service's `webhookUrl` names the URL the App's webhook points at.
   readable RSA PEM), the Client ID, and `webhookUrl`. Its async `preflight`
   then calls `GET /app/hook/config` as the App, so an inactive webhook (404) or
   a rejected JWT (401) fails the run before any secret is minted (#203).
-- `init` pushes both secrets as sensitive vars; `rotate` re-mints the webhook
-  secret and warns with the private key's manual steps. Both return an
-  `activate()` that PATCHes `/app/hook/config`, so GitHub changes only after
-  the redeploy succeeds.
+- `init` and `rotate` both push the `--private-key-file` key and a freshly
+  minted webhook secret as sensitive vars (#206). Both return an `activate()`
+  that proves the key with `GET /app` and then PATCHes `/app/hook/config`, so
+  GitHub changes only after the redeploy succeeds and the key works. `rotate`
+  then logs the key's SHA-256 fingerprint. The HTTP calls live in
+  [`github-app-api.ts`](../src/lib/github-app-api.ts).
 - `explicitInit`: selected by name, or by auto-detection when the manifest
   declares it, never by `init all`. See
   [Secrets rotation → GitHub App](secrets-rotation.md#github-app).
