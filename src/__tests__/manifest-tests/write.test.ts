@@ -54,7 +54,7 @@ describe("manifest", () => {
       ]);
       // The untouched services block still parses.
       expect(parseManifest(deployDir).services).toEqual([
-        { provider: "firebase" },
+        { name: "firebase", provider: "firebase" },
       ]);
     });
 
@@ -130,7 +130,7 @@ describe("manifest", () => {
     it("creates a vercel deployment with the target when no manifest exists", () => {
       setManifestTarget(deployDir, "demo", "preview");
       expect(parseManifest(deployDir).deployments).toEqual([
-        { provider: "vercel", targets: { demo: "preview" } },
+        { name: "vercel", provider: "vercel", targets: { demo: "preview" } },
       ]);
     });
 
@@ -144,7 +144,7 @@ describe("manifest", () => {
       // Must not silently return [] — must read from environments.yml.
       expect(manifest.environments).toEqual(["production", "demo"]);
       expect(manifest.deployments).toEqual([
-        { provider: "vercel", targets: { demo: "preview" } },
+        { name: "vercel", provider: "vercel", targets: { demo: "preview" } },
       ]);
     });
 
@@ -169,6 +169,7 @@ describe("manifest", () => {
       expect(text).toContain("# sink");
       expect(parseManifest(deployDir).deployments).toEqual([
         {
+          name: "vercel",
           provider: "vercel",
           targets: { production: "production", qa: "preview" },
         },

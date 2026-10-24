@@ -19,6 +19,8 @@ export interface VariableDecl {
 
 /** A provider-typed source of secret variables + rotation (firebase, sentry). */
 export interface ServiceDecl {
+  /** Unique within the manifest; defaults to `provider` (#211). */
+  readonly name: string;
   readonly provider: string;
   /** Environments this service is scoped to; `undefined` ⇒ every environment. */
   readonly environments?: readonly string[];
@@ -32,9 +34,20 @@ export interface ServiceDecl {
   readonly webhookUrl?: string;
 }
 
-/** A provider-typed deployment sink (vercel, …) with its env→target mapping. */
+/**
+ * A named, provider-typed deployment sink (vercel, …): one provider project,
+ * its env→target mapping, and which services and variables reach it (#210).
+ */
 export interface DeploymentDecl {
+  /** Unique within the manifest; defaults to `provider` (#211). */
+  readonly name: string;
   readonly provider: string;
+  /** Names of the services that reach it; `undefined` ⇒ every service. */
+  readonly services?: readonly string[];
+  /** Environments it deploys; `undefined` ⇒ every declared environment. */
+  readonly environments?: readonly string[];
+  /** Variables only this deployment receives, on top of the top-level ones. */
+  readonly variables?: readonly VariableDecl[];
   /** deploy-environment name → provider infrastructure target. */
   readonly targets: Readonly<Record<string, string>>;
   /**

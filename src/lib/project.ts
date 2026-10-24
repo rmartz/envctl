@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 import { err } from "./logger";
-import { parseManifest } from "./manifest";
+import { parseManifest, soleDeployment } from "./manifest";
 
 export interface ProjectConfig {
   projectId: string;
@@ -21,7 +21,7 @@ export interface IdentitySource {
 // The project the deployment dir's manifest pins (#208): the first deployment
 // entry's `projectId`/`teamId`, when it is a vercel deployment that sets one.
 export function projectPin(deploymentDir: string): ProjectConfig | undefined {
-  const deployment = parseManifest(deploymentDir).deployments[0];
+  const deployment = soleDeployment(parseManifest(deploymentDir));
   if (deployment?.provider !== "vercel" || !deployment.projectId)
     return undefined;
   return deployment.teamId

@@ -1,4 +1,4 @@
-import { parseManifest } from "../manifest";
+import { parseManifest, soleDeployment } from "../manifest";
 import { err } from "../logger";
 import {
   createVercelDeploymentProvider,
@@ -33,14 +33,14 @@ export function resolveDeploymentProvider(
   return factory(workingDir, deploymentDir);
 }
 
-// The deployment provider declared by the project's manifest — the first
-// `deployments[]` entry's provider, defaulting to vercel for a legacy config
+// The deployment provider declared by the project's manifest — its sole
+// `deployments[]` entry's provider (a multi-deployment manifest is refused), defaulting to vercel for a legacy config
 // (parseManifest synthesizes a vercel deployment when none is declared).
 export function resolveProjectDeployment(
   deploymentDir: string,
   workingDir: string,
 ): DeploymentProvider {
-  const provider = parseManifest(deploymentDir).deployments[0]?.provider;
+  const provider = soleDeployment(parseManifest(deploymentDir))?.provider;
   return resolveDeploymentProvider(
     provider ?? "vercel",
     workingDir,
