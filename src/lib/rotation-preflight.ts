@@ -1,5 +1,6 @@
 import { gcpAuthState, githubAuthState, sentryAuthState } from "./auth";
-import { err } from "./logger";
+import { readGithubAppPrivateKey, type GithubAppConfig } from "./github-app";
+import { err, FatalError } from "./logger";
 import { commandExists, run as runCmd } from "./subprocess";
 
 // The set of providers a rotation/init run will act on, after presence
@@ -9,6 +10,8 @@ export interface ProviderSet {
   sentry: boolean;
   /** Whether the run will mirror values to GitHub Actions secrets (#198). */
   github?: boolean;
+  /** The GitHub App config, set when a github-app service will act (#201). */
+  githubApp?: GithubAppConfig;
   /** Sentry org slug — falls back to SENTRY_ORG env var. */
   sentryOrg?: string;
   /** Sentry project slug — falls back to SENTRY_PROJECT env var. */
@@ -60,6 +63,8 @@ export function assertProviderAuth(providers: ProviderSet): void {
       "github (Actions secrets) — set GH_TOKEN or run `gh auth login`",
     );
 
+  if (providers.githubApp) missing.push(...githubAppGaps(providers.githubApp));
+
   if (missing.length > 0)
     err(
       `Not authenticated or configured for provider(s) required by this operation:\n` +
@@ -67,4 +72,31 @@ export function assertProviderAuth(providers: ProviderSet): void {
         `\nProvide the required credentials (see \`envctl auth status\`), or scope ` +
         `the run to a ready provider.`,
     );
+}
+
+// What a github-app run is missing: the PEM path (and a readable, valid PEM
+// behind it), the Client ID it signs the App JWT as, and the webhook URL.
+function githubAppGaps(cfg: GithubAppConfig): string[] {
+  const gaps: string[] = [];
+  if (!cfg.privateKeyFile)
+    gaps.push(
+      "github-app — pass --private-key-file <path> (the App's private key PEM)",
+    );
+  else {
+    try {
+      readGithubAppPrivateKey(cfg.privateKeyFile);
+    } catch (e) {
+      if (!(e instanceof FatalError)) throw e;
+      gaps.push(`github-app — ${e.message}`);
+    }
+  }
+  if (!cfg.clientId)
+    gaps.push(
+      `github-app — set ${cfg.vars.clientId} (the App's Client ID) in the deployment config`,
+    );
+  if (!cfg.webhookUrl)
+    gaps.push(
+      "github-app — set webhookUrl on the github-app service in manifest.yml",
+    );
+  return gaps;
 }

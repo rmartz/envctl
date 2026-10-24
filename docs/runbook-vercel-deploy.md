@@ -277,6 +277,43 @@ environments`, two environments point at the same PostHog project. Give each
 environment its own project. The next build picks up the vars, since
 `config push` doesn't redeploy.
 
+### D3. Set up a Vercel-hosted GitHub App server
+
+For a GitHub App whose webhook server runs on Vercel (for example
+`rmartz/pr-lifecycle-app`). envctl pushes the App's private key and a generated
+webhook secret as sensitive vars, and points the App's webhook at the
+deployment. The App itself, its permissions and its event subscriptions are set
+up by hand on the App's settings page: GitHub has no API for them.
+
+```bash
+# 1. Declare the service in deployment/manifest.yml:
+#      services:
+#        - provider: github-app
+#          environments: [production]
+#          webhookUrl: https://my-app.vercel.app/api/webhook
+#          variables:            # only to rename from GITHUB_APP_*
+#            clientId: MY_APP_CLIENT_ID
+#            privateKey: MY_APP_PRIVATE_KEY
+#            webhookSecret: MY_APP_WEBHOOK_SECRET
+# 2. Put the public Client ID in deployment/production.yml and push it:
+#      MY_APP_CLIENT_ID: Iv23li…
+envctl config push --env production
+# 3. On the App's settings page, "Generate a private key" and save the PEM.
+# 4. Push both secrets, redeploy, then point the webhook at the deployment:
+envctl secrets init github-app --private-key-file ~/Downloads/my-app.pem
+# 5. Delete the PEM, or store it somewhere safe; rotation needs it again.
+```
+
+To rotate the webhook secret later:
+`envctl secrets rotate github-app --private-key-file <pem>`. The private key
+can't be rotated by envctl; the command prints the manual steps
+([details](secrets-rotation.md#github-app)).
+
+**How you know it worked:** the run logs each target's two pushed vars, the
+redeploy reaching `READY`, and `Pointed the GitHub App webhook at <url>`. The
+App's settings page shows the new webhook URL, and its Advanced tab shows
+deliveries succeeding.
+
 ### E. Change public vars only
 
 No secret change — just add, update, or correct public (non-secret) vars. Edit

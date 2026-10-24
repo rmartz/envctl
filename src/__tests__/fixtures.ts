@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -59,7 +60,7 @@ export class FakeVercel {
     value: string,
     target: string,
     _all: VercelEnvVar[],
-    type: "plain" | "encrypted" = "encrypted",
+    type: "plain" | "encrypted" | "sensitive" = "encrypted",
   ): Promise<string> {
     this.envs = this.envs.filter(
       (e) => !(e.key === key && e.target.includes(target)),
@@ -141,3 +142,18 @@ export const makeLiveVar = (
   target: [target],
   type,
 });
+
+// A GitHub App private key PEM, generated per run (never committed, never
+// asserted on) and written to `dir`. `ec` makes a valid PEM of the wrong kind.
+export function makeGithubAppKeyFile(dir: string, kind: "rsa" | "ec" = "rsa") {
+  const { privateKey } =
+    kind === "rsa"
+      ? generateKeyPairSync("rsa", { modulusLength: 2048 })
+      : generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const file = path.join(dir, `app-${kind}.pem`);
+  fs.writeFileSync(
+    file,
+    privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+  );
+  return file;
+}

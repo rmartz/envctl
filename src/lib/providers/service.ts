@@ -4,10 +4,12 @@ import {
 } from "../firebase-credential";
 import { initFirebase, rotateFirebase } from "../firebase";
 import { invalidateFirebaseKeys } from "../firebase-invalidate";
+import type { GithubAppConfig } from "../github-app";
 import { err } from "../logger";
 import type { PosthogVarNames } from "../posthog";
 import { initSentry, invalidateSentryKey, rotateSentry } from "../sentry";
 import type { DeploymentProvider } from "./deployment";
+import { githubAppServiceProvider } from "./github-app";
 import { posthogServiceProvider } from "./posthog";
 
 // Context handed to every service provider for a run — the superset of
@@ -24,6 +26,8 @@ export interface ServiceContext {
   sentryProject?: string;
   /** Resolved PostHog var names (#173); undefined ⇒ the default names. */
   posthogVars?: PosthogVarNames;
+  /** Resolved GitHub App config (#201); undefined ⇒ default var names. */
+  githubApp?: GithubAppConfig;
   /**
    * The provider targets this service is scoped to (#89), from the manifest's
    * `services[].environments`. Undefined ⇒ all environments (unscoped). init /
@@ -32,10 +36,17 @@ export interface ServiceContext {
   allowedTargets?: string[];
 }
 
+// Work a service defers until the redeploy has proven its new value live —
+// e.g. pointing an external webhook at a new secret (#201). Runs regardless of
+// `--no-invalidate`, and never runs when an earlier step failed.
+export interface ServiceActivation {
+  activate?(): Promise<void>;
+}
+
 // The outcome of rotating one service: how to invalidate the retired credential
 // after the redeploy proves the new one live, and how to describe it when
 // invalidation is skipped (`--no-invalidate`).
-export interface ServiceRotation {
+export interface ServiceRotation extends ServiceActivation {
   invalidate(): Promise<void>;
   retiredKeyWarnings(): string[];
 }
@@ -47,7 +58,9 @@ export interface ServiceProvider {
   readonly provider: string;
   readonly displayName: string;
   /** Which slot this provider fills in the fail-fast auth preflight. */
-  readonly authKey: "firebase" | "sentry" | "none";
+  readonly authKey: "firebase" | "sentry" | "github-app" | "none";
+  /** Initialized only when named, never by `init all`. */
+  readonly explicitInit?: boolean;
   /**
    * Set for a provider whose secret cannot be rotated through its API: returns
    * the manual steps. The engine never calls init/rotate on such a provider —
@@ -65,7 +78,7 @@ export interface ServiceProvider {
   contractVars?(ctx: ServiceContext): string[];
   /** Env vars whose values must differ across environments (e.g. a project id); `check --live` errors when two environments resolve to the same value. */
   isolatedVars?(ctx: ServiceContext): string[];
-  init(ctx: ServiceContext): Promise<void>;
+  init(ctx: ServiceContext): Promise<ServiceActivation | void>;
   rotate(ctx: ServiceContext): Promise<ServiceRotation>;
 }
 
@@ -172,6 +185,7 @@ const SERVICE_PROVIDERS: Record<string, ServiceProvider> = {
   firebase: firebaseServiceProvider,
   sentry: sentryServiceProvider,
   posthog: posthogServiceProvider,
+  "github-app": githubAppServiceProvider,
 };
 
 export const serviceProviders = (): ServiceProvider[] =>

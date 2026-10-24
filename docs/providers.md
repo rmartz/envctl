@@ -41,7 +41,13 @@ fresh credential, and `rotate` — returning a `ServiceRotation` handle that kno
 how to `invalidate` the retired credential (after the redeploy proves the new one
 live) and how to describe it under `--no-invalidate`. **Firebase** and **Sentry**
 implement it, wrapping the existing `firebase.ts` / `sentry.ts` functions (whose
-`client` parameter is now the `DeploymentProvider` interface).
+`client` parameter is now the `DeploymentProvider` interface). **GitHub App**
+is a third automatable source.
+
+`init` may return, and `ServiceRotation` may carry, an `activate()` hook: work
+the engine runs after the redeploy is `READY` and before invalidation, whether
+or not `--no-invalidate` is set. A source sets `explicitInit` to stay out of
+`init all`.
 
 Two optional members feed [`envctl check --live`](check.md):
 
@@ -56,7 +62,7 @@ Two optional members feed [`envctl check --live`](check.md):
   the same value. Firebase returns its project-id var.
 
 - `serviceProviders()` returns the registered sources in a fixed order
-  (Firebase, then Sentry, then PostHog) — the order in which they act, so the
+  (Firebase, Sentry, PostHog, then GitHub App) — the order in which they act, so the
   auth preflight and rotation sequence match the pre-registry behavior.
 - `resolveServiceProvider(name)` resolves one by its manifest name, erroring on
   an unknown value.
@@ -108,6 +114,26 @@ services:
   allows only `retrieve` for that kind of caller. See
   [Secrets rotation → PostHog](secrets-rotation.md#posthog-manual-rotation).
 
+### GitHub App
+
+[`providers/github-app.ts`](../src/lib/providers/github-app.ts) with its
+contract, PEM loading, App JWT and webhook PATCH in
+[`github-app.ts`](../src/lib/github-app.ts) (#201). Fields `clientId`
+(public), `privateKey` and `webhookSecret` (secrets) default to
+`GITHUB_APP_*` names and are renamed through `services[].variables`; the
+service's `webhookUrl` names the URL the App's webhook points at.
+
+- `presenceKeys` and `contractVars` are the private key and webhook secret.
+- `authKey: "github-app"`: the preflight requires `--private-key-file` (a
+  readable RSA PEM), the Client ID, and `webhookUrl`.
+- `init` pushes both secrets as sensitive vars; `rotate` re-mints the webhook
+  secret and warns with the private key's manual steps. Both return an
+  `activate()` that PATCHes `/app/hook/config`, so GitHub changes only after
+  the redeploy succeeds.
+- `explicitInit`: selected by name, or by auto-detection when the manifest
+  declares it, never by `init all`. See
+  [Secrets rotation → GitHub App](secrets-rotation.md#github-app).
+
 ## How the rotation engine iterates them
 
 [`rotation.ts`](../src/lib/rotation.ts) `run` resolves the deployment provider
@@ -122,7 +148,8 @@ from the registry, then iterates `serviceProviders()` generically:
    before any key is minted (#91).
 4. **init** each acting source, or **rotate** each and collect its
    `ServiceRotation`; then a single **redeploy** proves the new credentials live.
-5. **invalidate** each rotation (or print its retired-key warnings under
+5. **activate** each init or rotation that returned an `activate()` hook.
+6. **invalidate** each rotation (or print its retired-key warnings under
    `--no-invalidate`).
 
 The engine never names Firebase or Sentry — it works entirely against the

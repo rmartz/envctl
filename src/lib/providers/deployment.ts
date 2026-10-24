@@ -11,7 +11,7 @@ import {
   type VercelEnvVarList,
 } from "../vercel-api";
 
-type EnvVarType = "plain" | "encrypted";
+type EnvVarType = "plain" | "encrypted" | "sensitive";
 
 // A hosting sink — the manifest `deployments[].provider`. Captures project
 // identity, per-target env-var reads/writes, and redeploy orchestration, so

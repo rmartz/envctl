@@ -1,5 +1,7 @@
 import { parseDeploymentEnv } from "../environments";
+import { GITHUB_APP_PROVIDER } from "../github-app";
 import { err, log } from "../logger";
+import { parseManifest } from "../manifest";
 
 // Init-mode planning: resolve `--init auto` to a concrete service from the
 // deployment config, and validate that the config required to initialize the
@@ -22,12 +24,14 @@ function sentrySourceEnv(
 
 // Scans the deployment config's public vars to determine which secret-backed
 // services a project uses. Shared by `--init auto` resolution and `bootstrap`.
+// A GitHub App has no telltale public var, so it counts as configured only when
+// the manifest declares a `github-app` service (#201).
 export function detectConfiguredServices(
   deploymentDir: string,
   targetEnv: string,
   envList: string[],
   devSource: string | undefined,
-): { firebase: boolean; sentry: boolean } {
+): { firebase: boolean; sentry: boolean; githubApp: boolean } {
   // development has no own YAML — scan its source (staging) instead.
   const scanEnvs =
     targetEnv === "development"
@@ -51,23 +55,27 @@ export function detectConfiguredServices(
       ].includes(k),
     ),
     sentry: keys.some((k) => ["SENTRY_ORG", "SENTRY_PROJECT"].includes(k)),
+    githubApp: parseManifest(deploymentDir).services.some(
+      (s) => s.provider === GITHUB_APP_PROVIDER,
+    ),
   };
 }
 
 // Resolves `--init auto` by scanning the deployment config for public vars that
-// indicate which services are in use. Errors if neither is configured.
+// indicate which services are in use. Errors if none is configured, or if a
+// GitHub App is configured alongside Firebase/Sentry (`init all` means Firebase +
+// Sentry, so each must then be named).
 export function resolveAutoInit(
   deploymentDir: string,
   targetEnv: string,
   envList: string[],
   devSource: string | undefined,
-): "all" | "firebase" | "sentry" {
-  const { firebase: hasFirebase, sentry: hasSentry } = detectConfiguredServices(
-    deploymentDir,
-    targetEnv,
-    envList,
-    devSource,
-  );
+): "all" | "firebase" | "sentry" | "github-app" {
+  const {
+    firebase: hasFirebase,
+    sentry: hasSentry,
+    githubApp: hasGithubApp,
+  } = detectConfiguredServices(deploymentDir, targetEnv, envList, devSource);
 
   log("Auto-detecting secrets to initialize:");
   log(
@@ -81,10 +89,21 @@ export function resolveAutoInit(
       : "  Sentry: skip (no Sentry public vars)",
   );
 
-  if (!hasFirebase && !hasSentry)
+  log(
+    hasGithubApp
+      ? "  GitHub App: initialize (github-app service declared)"
+      : "  GitHub App: skip (no github-app service in manifest.yml)",
+  );
+
+  if (!hasFirebase && !hasSentry && !hasGithubApp)
     err(
-      "secrets init: nothing to initialize — no Firebase or Sentry public config vars found in the deployment config",
+      "secrets init: nothing to initialize — no Firebase or Sentry public config vars or github-app service found in the deployment config",
     );
+  if (hasGithubApp && (hasFirebase || hasSentry))
+    err(
+      "secrets init: both a github-app service and Firebase/Sentry are configured — initialize each by name: `envctl secrets init github-app --private-key-file <pem>`, then `envctl secrets init firebase|sentry|all`",
+    );
+  if (hasGithubApp) return "github-app";
 
   if (hasFirebase && hasSentry) return "all";
   if (hasFirebase) return "firebase";
@@ -117,7 +136,7 @@ function firebaseConfigMissing(
 // Validates that the config needed to initialize the chosen service(s) is
 // present (in the deployment YAML or shell env), erroring with every gap at once.
 export function validateInitConfig(
-  init: "all" | "firebase" | "sentry" | "posthog",
+  init: "all" | "firebase" | "sentry" | "posthog" | "github-app",
   deploymentDir: string,
   targetEnv: string,
   envList: string[],
