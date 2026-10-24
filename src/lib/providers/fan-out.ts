@@ -19,17 +19,25 @@ async function ownRecord(
   return member.deployment.findEnvVar(envs, key, target);
 }
 
-// Write `value` for `key` on each of `targets` in a member's project, through
-// its own records (ids differ between projects).
+// Write the updated `record`'s new value on each of its targets in a member's
+// project, through its own records (ids differ between projects), keeping the
+// record's type. The legacy "secret" type can't be written, so it becomes
+// "encrypted".
 async function writeOwn(
   member: FanOutMember,
-  key: string,
+  record: VercelEnvVar,
   value: string,
-  targets: readonly string[],
 ): Promise<void> {
-  for (const target of targets) {
+  const type = record.type === "secret" ? "encrypted" : record.type;
+  for (const target of record.target) {
     const { envs } = await member.deployment.listEnvVars();
-    await member.deployment.setEnvForTarget(key, value, target, envs);
+    await member.deployment.setEnvForTarget(
+      record.key,
+      value,
+      target,
+      envs,
+      type,
+    );
   }
 }
 
@@ -60,8 +68,7 @@ export function fanOutDeployment(
     },
     updateEnvVar: async (existing, value) => {
       await p.updateEnvVar(existing, value);
-      for (const o of others)
-        await writeOwn(o, existing.key, value, existing.target);
+      for (const o of others) await writeOwn(o, existing, value);
     },
     setEnvForTarget: async (key, value, target, envs, type) => {
       const id = await p.setEnvForTarget(key, value, target, envs, type);
