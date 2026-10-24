@@ -209,6 +209,26 @@ describe("splitSharedGenerated", () => {
     ]);
   });
 
+  it("keeps a root variable a deployment re-declares as its own", () => {
+    fs.writeFileSync(
+      path.join(root, "manifest.yml"),
+      fs
+        .readFileSync(path.join(root, "manifest.yml"), "utf-8")
+        .replace(
+          "      GATE_TOKEN: { generate: true }",
+          "      GATE_TOKEN: { generate: true }\n      CRON_SECRET: { generate: true }",
+        ),
+    );
+    const gateDir = path.join(root, "gate");
+    const split = splitSharedGenerated(
+      gateDir,
+      workingDir,
+      makeFakeDeployment("gate"),
+      resolveGeneratedSecrets(gateDir),
+    );
+    expect(split.shared).toEqual([]);
+  });
+
   it("puts the run's own deployment first, with each sibling pinned", () => {
     const gateDir = path.join(root, "gate");
     const split = splitSharedGenerated(

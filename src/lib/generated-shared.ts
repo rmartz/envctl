@@ -7,7 +7,7 @@ import {
   type GeneratedSecretPushOptions,
 } from "./generated-secrets";
 import { err, log } from "./logger";
-import { deploymentView, parseManifest } from "./manifest";
+import { deploymentView, parseManifest, type DeploymentDecl } from "./manifest";
 import type { DeploymentProvider } from "./providers/deployment";
 import { resolveProjectDeployment } from "./providers/registry";
 
@@ -46,9 +46,15 @@ export function splitSharedGenerated(
       .filter((v) => v.source.kind === "generate")
       .map((v) => v.name),
   );
+  // A deployment that declares a root variable under its own `variables`
+  // overrides it, so the name is its own there, not shared.
+  const overrides = (d: DeploymentDecl): Set<string> =>
+    new Set((d.variables ?? []).map((v) => v.name));
+  const isShared = (name: string, d: DeploymentDecl): boolean =>
+    rootGenerated.has(name) && !overrides(d).has(name);
   const shared = generated
     .map((s) => s.name)
-    .filter((name) => rootGenerated.has(name));
+    .filter((name) => isShared(name, view.deployment));
   if (shared.length === 0) return { own: generated, shared, members: [] };
   const members = root.deployments.map((d) => {
     const dir = path.join(view.root, d.name);
@@ -58,7 +64,7 @@ export function splitSharedGenerated(
         d.name === view.deployment.name
           ? primary
           : resolveProjectDeployment(dir, workingDir),
-      secrets: resolveGeneratedSecrets(dir),
+      secrets: resolveGeneratedSecrets(dir).filter((s) => isShared(s.name, d)),
     };
   });
   members.sort((a, b) =>
@@ -69,7 +75,7 @@ export function splitSharedGenerated(
         : 0,
   );
   return {
-    own: generated.filter((s) => !rootGenerated.has(s.name)),
+    own: generated.filter((s) => !shared.includes(s.name)),
     shared,
     members,
   };
