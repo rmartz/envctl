@@ -182,9 +182,28 @@ A view's guarantees:
 `check` validates each deployment's env→target resolution and project identity
 through its view, prefixing findings with the deployment name.
 
-**Not yet:** acting on one service across several deployments, and minting a
-top-level generated variable once for all of them. Today each deployment's run
-mints its own value. Both are later steps of #210.
+### Service routing
+
+A service **reaches** a deployment that lists it, or every deployment if that
+deployment lists none ([`routing.ts`](../src/lib/manifest/routing.ts), #215):
+
+- **One per provider.** The rotation engine keys services by provider, so a
+  deployment receiving two services of one provider (two `github-app`s, say) is
+  a `manifestErrors` error.
+- **No shared variable names.** Two services of different providers writing
+  the same variable on one deployment are a `check` error (`serviceVarCollisions`
+  in [`service-vars.ts`](../src/lib/service-vars.ts)).
+- **No foreign variables live.** `check --live` reconciles each deployment of a
+  multi-deployment root through its view. It reports an error for any
+  variable on that project owned only by a service the deployment doesn't
+  list, such as the other App's private key.
+- **Secrets commands route by service.** They select the deployment through the
+  service and refuse to rotate a shared one under a single deployment; see
+  [shared services](secrets-rotation.md#shared-services-across-deployments).
+
+**Not yet:** acting on one service across several deployments at once, and
+minting a top-level generated variable once for all of them. Today each
+deployment's run mints its own value. Both are #216.
 
 [`effectiveValue(manifest, env, name)`](../src/lib/manifest/resolve.ts) resolves
 a variable's literal value for an environment: a per-env overlay override wins

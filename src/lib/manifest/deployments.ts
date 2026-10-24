@@ -1,4 +1,5 @@
 import { err } from "../logger";
+import { servicesReaching } from "./routing";
 import type { DeploymentDecl, ResolvedManifest } from "./types";
 import {
   isSafeDeploymentName,
@@ -50,6 +51,16 @@ export function manifestErrors(manifest: ResolvedManifest): string[] {
         errors.push(
           `deployment '${dep.name}' is scoped to undeclared environment '${env}'.`,
         );
+    // The rotation engine keys services by provider, so a second instance of
+    // a provider reaching the same deployment would be silently ignored (#215).
+    const reaching = servicesReaching(manifest, dep);
+    for (const provider of duplicates(reaching.map((s) => s.provider)))
+      errors.push(
+        `deployment '${dep.name}' receives more than one ${provider} service (${reaching
+          .filter((s) => s.provider === provider)
+          .map((s) => s.name)
+          .join(", ")}) — list only one in its services.`,
+      );
   }
   return errors;
 }

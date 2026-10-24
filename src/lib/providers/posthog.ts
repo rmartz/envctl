@@ -1,8 +1,9 @@
 import { err } from "../logger";
 import { posthogManualSteps, resolvePosthogVars } from "../posthog";
-import type { ServiceContext, ServiceProvider } from "./service";
+import type { ServiceProvider, ServiceVarContext } from "./service";
 
-const varsOf = (ctx: ServiceContext) => ctx.posthogVars ?? resolvePosthogVars();
+const varsOf = (ctx: ServiceVarContext) =>
+  ctx.posthogVars ?? resolvePosthogVars();
 
 // PostHog (#173). Its only secret is the optional personal API key, which the
 // PostHog API will not mint or delete for an API-key-authenticated caller — so

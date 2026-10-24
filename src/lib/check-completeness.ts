@@ -1,16 +1,18 @@
 import * as fs from "fs";
 
 import { mkError, mkWarning, type Finding } from "./check";
-import { resolveFirebaseCredential } from "./firebase-credential";
-import { GITHUB_APP_PROVIDER, resolveGithubAppVars } from "./github-app";
-import { manifestFilePath, type ResolvedManifest } from "./manifest";
-import { resolvePosthogVars } from "./posthog";
+import {
+  deploymentView,
+  manifestFilePath,
+  type ResolvedManifest,
+} from "./manifest";
 import type { DeploymentProvider } from "./providers/deployment";
 import {
   serviceProviders,
   type ServiceContext,
   type ServiceProvider,
 } from "./providers/service";
+import { serviceVarContext } from "./service-vars";
 import type { VercelEnvVar } from "./vercel-api";
 
 // Required-variable completeness (#175), part of `envctl check --live`: every
@@ -43,20 +45,7 @@ export function checkServiceContext(
     targetEnv: "all",
     deployment,
     tempDir: "",
-    firebaseCredential: resolveFirebaseCredential(
-      manifest.services.find((s) => s.provider === "firebase"),
-    ),
-    posthogVars: resolvePosthogVars(
-      manifest.services.find((s) => s.provider === "posthog"),
-    ),
-    githubApp: {
-      declared: manifest.services.some(
-        (s) => s.provider === GITHUB_APP_PROVIDER,
-      ),
-      vars: resolveGithubAppVars(
-        manifest.services.find((s) => s.provider === GITHUB_APP_PROVIDER),
-      ),
-    },
+    ...serviceVarContext(manifest.services),
   };
 }
 
@@ -78,7 +67,10 @@ export function declaredByEnv(
   ctx: ServiceContext,
   resolveTarget: (env: string) => string,
 ): EnvDeclaration[] {
-  const legacy = !fs.existsSync(manifestFilePath(configDir));
+  // A deployment view (#213) has no manifest.yml of its own but declares its
+  // services through the root, so it is not legacy.
+  const legacy =
+    !fs.existsSync(manifestFilePath(configDir)) && !deploymentView(configDir);
   const providers = new Map(serviceProviders().map((p) => [p.provider, p]));
   const legacyKnown = legacy
     ? [...providers.values()].flatMap((p) => serviceKnown(p, ctx))

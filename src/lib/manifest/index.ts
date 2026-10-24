@@ -18,6 +18,11 @@ export {
 } from "./deployments";
 export { effectiveValue, publicVars } from "./resolve";
 export {
+  deploymentsReached,
+  servicesReaching,
+  sharedServices,
+} from "./routing";
+export {
   deploymentView,
   isSafeDeploymentName,
   type DeploymentView,

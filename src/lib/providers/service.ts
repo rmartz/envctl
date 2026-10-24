@@ -36,6 +36,14 @@ export interface ServiceContext {
   allowedTargets?: string[];
 }
 
+// The part of a ServiceContext that names a service's variables. Resolving
+// names needs no live deployment, so `check` and the deployment router can ask
+// a provider which variables a service owns (#215).
+export type ServiceVarContext = Pick<
+  ServiceContext,
+  "firebaseCredential" | "posthogVars" | "githubApp"
+>;
+
 // Work a service defers until the redeploy has proven its new value live —
 // e.g. pointing an external webhook at a new secret (#201). Runs regardless of
 // `--no-invalidate`, and never runs when an earlier step failed.
@@ -69,15 +77,15 @@ export interface ServiceProvider {
    */
   manualSteps?(ctx: ServiceContext): string;
   /** Env-var keys whose presence in Vercel means this service is provisioned. */
-  presenceKeys(ctx: ServiceContext): string[];
+  presenceKeys(ctx: ServiceVarContext): string[];
   /**
    * Every env var this service provisions on each in-scope target — what
    * `check --live` requires to be present there. Falls back to
    * {@link presenceKeys} when omitted.
    */
-  contractVars?(ctx: ServiceContext): string[];
+  contractVars?(ctx: ServiceVarContext): string[];
   /** Env vars whose values must differ across environments (e.g. a project id); `check --live` errors when two environments resolve to the same value. */
-  isolatedVars?(ctx: ServiceContext): string[];
+  isolatedVars?(ctx: ServiceVarContext): string[];
   /**
    * Remote checks run for every acting provider after the auth preflight and
    * before anything is minted, so a failure leaves every system untouched.

@@ -16,6 +16,7 @@ import {
 import { detectProject, missingSharedPin, projectPin } from "./project";
 import { KNOWN_DEPLOYMENT_PROVIDERS } from "./providers/registry";
 import { serviceProviders } from "./providers/service";
+import { serviceVarCollisions } from "./service-vars";
 import { envTargetResolver } from "./targets";
 
 // A single validation result. `check` collects these across every rule and
@@ -83,6 +84,7 @@ export function checkStatic(workingDir: string): Finding[] {
     ...checkOrphanOverlays(configDir, declared),
     ...checkProvidersRegistered(manifest),
     ...checkScopes(manifest, declared),
+    ...serviceVarCollisions(manifest).map((message) => mkError(message)),
     // A structurally invalid manifest can't be resolved per deployment; its
     // errors above are what to fix first.
     ...(structural.length > 0

@@ -32,17 +32,37 @@ are a separate concern — see [config-push](config-push.md).
 ## Commands
 
 ```bash
-envctl secrets rotate [firebase|sentry|posthog|github-app] [OPTS] # rotate existing secrets
-envctl secrets init [firebase|sentry|posthog|github-app] [OPTS]   # bootstrap secrets for a fresh project
+envctl secrets rotate [<provider>|<service>] [OPTS] # rotate existing secrets
+envctl secrets init [<provider>|<service>] [OPTS]   # bootstrap secrets for a fresh project
 ```
 
 Both accept `--env <name|development|all>` (default `all`), `--deployment-dir <path>`
-(default `deployment`), `--no-invalidate`, and `--refresh-previews`, and both take
-an optional leading `firebase`|`sentry` positional. For `init` it selects which
-service to initialize (omitted → auto-detect from the deployment config); for
-`rotate` it **scopes the run to a single provider** — useful when a project has
-both providers in Vercel but you only want to (or can only) rotate one. Omitting
-it rotates every provider present in the project.
+(default `deployment`), `--deployment <name>`, `--no-invalidate`, and
+`--refresh-previews`. Both also take an optional positional naming the service.
+That is a provider (`firebase`, `sentry`, `posthog`, `github-app`) or a manifest
+service name such as `gate-app`. For `init` it selects which service to
+initialize (omitted → auto-detect from the deployment config). For `rotate` it
+**scopes the run to a single provider**, useful when a project has several in
+Vercel but you only want to (or can only) rotate one. Omitting it rotates every
+provider present in the project.
+
+### Shared services across deployments
+
+In a [multi-deployment manifest](manifest.md#deployment-views) (#215):
+
+- **The service picks the deployment.** Run on the root without
+  `--deployment`, `secrets init|rotate <service>` acts on the one deployment
+  that lists that service. `secrets rotate gate-app` therefore rotates the gate
+  App's key in the gate project. A provider keyword with several services of
+  that provider must be replaced by the service's name.
+- **Shared services need one deployment at a time.** A service several
+  deployments list (one Sentry shared by both) is refused without `--deployment`.
+  Acting on all of them at once is #216.
+- **Rotating a shared service would break the others.** Inside one deployment,
+  rotating a service it shares would invalidate a credential the other
+  deployments still use, so it is refused. That includes an unscoped `rotate`
+  that would reach it. Use `--no-invalidate`, which keeps the old credential
+  valid, or scope the rotation to an unshared service.
 
 ## Rotate vs. init
 
