@@ -102,9 +102,18 @@ export const githubAppServiceProvider: ServiceProvider = {
     const secret = generateSecretValue();
     log("Rotating GitHub App webhook secret...");
     const { envs } = await ctx.deployment.listEnvVars();
-    for (const target of inScopeTargets(ctx)) {
-      if (!ctx.deployment.findEnvVar(envs, cfg.vars.webhookSecret, target))
-        continue;
+    // Every provisioned target (either var present) gets the new secret, so
+    // GitHub is never PATCHed with a secret the server lacks.
+    const targets = inScopeTargets(ctx).filter((target) =>
+      [cfg.vars.webhookSecret, cfg.vars.privateKey].some((key) =>
+        ctx.deployment.findEnvVar(envs, key, target),
+      ),
+    );
+    if (targets.length === 0)
+      err(
+        `No in-scope Vercel target holds ${cfg.vars.webhookSecret} or ${cfg.vars.privateKey} — nothing to rotate.`,
+      );
+    for (const target of targets) {
       await ctx.deployment.setEnvForTarget(
         cfg.vars.webhookSecret,
         secret,

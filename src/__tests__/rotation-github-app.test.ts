@@ -167,6 +167,16 @@ describe("run — github-app provider", () => {
       ]);
     });
 
+    it("pushes the new secret where only the private key exists", async () => {
+      await mockServices(["APP_PRIVATE_KEY"]);
+      await run(opts({ provider: "github-app" }));
+      expect(events).toEqual([
+        "push APP_WEBHOOK_SECRET production sensitive",
+        "redeploy",
+        "patch",
+      ]);
+    });
+
     it("leaves GitHub untouched when the redeploy fails", async () => {
       await mockServices(["APP_PRIVATE_KEY", "APP_WEBHOOK_SECRET"], true);
       await expect(run(opts({ provider: "github-app" }))).rejects.toThrow(
