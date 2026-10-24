@@ -78,8 +78,9 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
   if (init === "posthog" || opts.provider === "posthog")
     err(posthogManualSteps(posthogVarsFor(opts.deploymentDir)));
   // Rotating a credential another deployment shares would invalidate it under
-  // that deployment (#215).
-  if (!isInit && opts.invalidateKeys)
+  // that deployment (#215) — unless this run covers all of them (#216).
+  const shared = opts.sharedDeploymentDirs ?? [];
+  if (!isInit && opts.invalidateKeys && shared.length === 0)
     assertNoSharedRotation(opts.deploymentDir, opts.provider);
   const named = opts.provider ?? init;
   for (const provider of named === "all"
@@ -108,7 +109,13 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
   log(
     `Target: ${opts.targetEnv} | ${isInit ? `Initializing${init ? ` ${init}` : ""}` : `Rotating (invalidate old: ${opts.invalidateKeys})`}`,
   );
-  if (generated.length === 0) {
+  if (generated.length === 0 || shared.length > 0) {
+    // A shared-service run acts on that service alone; generated variables
+    // stay per deployment until #219.
+    if (generated.length > 0)
+      log(
+        "Generated variables are left unchanged by a shared-service run; rotate them per deployment.",
+      );
     await dispatchRotation(opts, init, envList, devSource, firebaseCredential);
   } else {
     await runWithGeneratedSecrets(
@@ -122,11 +129,12 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
     );
   }
 
-  if (opts.refreshPreviews) {
-    const project = detectProject(opts.workingDir, opts.deploymentDir);
-    const client = new VercelClient(token, project.projectId, project.teamId);
-    await refreshPreviewDeployments(client);
-  }
+  if (opts.refreshPreviews)
+    for (const dir of [opts.deploymentDir, ...shared]) {
+      const project = detectProject(opts.workingDir, dir);
+      const client = new VercelClient(token, project.projectId, project.teamId);
+      await refreshPreviewDeployments(client);
+    }
 }
 
 // Command adapters: parse args (the global -C is already stripped by the

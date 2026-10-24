@@ -17,6 +17,8 @@ import { githubAppConfigFor } from "./github-app";
 import { log, warn } from "./logger";
 import { parseManifest } from "./manifest";
 import { posthogVarsFor } from "./posthog";
+import type { DeploymentProvider } from "./providers/deployment";
+import { fanOutDeployment } from "./providers/fan-out";
 import { resolveProjectDeployment } from "./providers/registry";
 import {
   serviceProviders,
@@ -44,6 +46,29 @@ export function serviceScopeTargets(
   return [...new Set(service.environments.map((e) => resolveTarget(e)))];
 }
 
+// The run's deployment provider: the selected deployment's, or — for a shared
+// service (#216) — a fan-out over it and every other deployment sharing it.
+// Each member's identity is resolved and pin-checked here, before anything is
+// minted.
+function sharedDeployment(
+  configDir: string,
+  workingDir: string,
+  sharedDirs: string[] | undefined,
+): DeploymentProvider {
+  const primary = resolveProjectDeployment(configDir, workingDir);
+  if (!sharedDirs || sharedDirs.length === 0) return primary;
+  const member = (dir: string, deployment: DeploymentProvider) => ({
+    name: path.basename(dir),
+    deployment,
+  });
+  const others = sharedDirs.map((dir) =>
+    member(dir, resolveProjectDeployment(dir, workingDir)),
+  );
+  for (const m of [member(configDir, primary), ...others])
+    log(`Shared service: deployment '${m.name}' → ${m.deployment.projectId}`);
+  return fanOutDeployment(member(configDir, primary), others);
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface RotationOptions {
@@ -68,6 +93,12 @@ export interface RotationOptions {
    * Ignored for `init` flows, which scope via {@link RotationOptions.init}.
    */
   provider?: "firebase" | "sentry" | "posthog" | "github-app";
+  /**
+   * The other deployments sharing the selected service (#216): their view
+   * dirs. Set, the run mints once and writes to every one of their projects
+   * through a fan-out provider, redeploying all before anything is invalidated.
+   */
+  sharedDeploymentDirs?: string[];
   /** Local path to the GitHub App private key PEM (`--private-key-file`). */
   githubAppPrivateKeyFile?: string;
   /**
@@ -96,7 +127,7 @@ export async function run(opts: RotationOptions): Promise<void> {
     runTargets.includes(t.target),
   );
   const deployment = withGithubSecretSync(
-    resolveProjectDeployment(configDir, workingDir),
+    sharedDeployment(configDir, workingDir, opts.sharedDeploymentDirs),
     githubTargets,
   );
   log(
