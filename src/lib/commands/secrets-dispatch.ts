@@ -4,8 +4,13 @@ import {
   pushGeneratedSecrets,
   type GeneratedSecret,
 } from "../generated-secrets";
+import {
+  pushSharedGeneratedSecrets,
+  splitSharedGenerated,
+} from "../generated-shared";
 import { githubAppConfigFor } from "../github-app";
 import { resolveGithubSecrets, withGithubSecretSync } from "../github-secrets";
+import { log } from "../logger";
 import type { DeploymentProvider } from "../providers/deployment";
 import { resolveProjectDeployment } from "../providers/registry";
 import { serviceProviders, type ServiceContext } from "../providers/service";
@@ -179,10 +184,23 @@ export async function runWithGeneratedSecrets(
     githubTargets,
   );
 
-  const wrote = await pushGeneratedSecrets(deployment, generated, {
-    overwrite: !isInit,
-    targetEnv: runTarget,
-  });
+  // Generated variables declared at a multi-deployment root are shared: one
+  // value per target across every deployment (#219).
+  const pushOpts = { overwrite: !isInit, targetEnv: runTarget };
+  const { own, shared, members } = splitSharedGenerated(
+    opts.deploymentDir,
+    opts.workingDir,
+    deployment,
+    generated,
+  );
+  const sharedWritten = await pushSharedGeneratedSecrets(
+    members,
+    shared,
+    pushOpts,
+  );
+  const wrote =
+    (await pushGeneratedSecrets(deployment, own, pushOpts)) ||
+    sharedWritten.has(members[0]?.name ?? "");
 
   const providerWork = isInit
     ? init !== undefined
@@ -197,4 +215,10 @@ export async function runWithGeneratedSecrets(
   } else if (wrote) {
     await deployment.triggerAndWaitRedeployments(runTarget);
   }
+  // A sibling that took a shared value runs on it only once redeployed.
+  for (const member of members.slice(1))
+    if (sharedWritten.has(member.name)) {
+      log(`Redeploying deployment '${member.name}' for its shared values...`);
+      await member.deployment.triggerAndWaitRedeployments(runTarget);
+    }
 }

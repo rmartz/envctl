@@ -71,7 +71,9 @@ In a [multi-deployment manifest](manifest.md#deployment-views) (#215):
 - **Some shared services are refused.** A shared run requires every sharing
   deployment to map its environments to the same targets. A GitHub App shared
   by several deployments is refused outright, since it has one webhook URL. A
-  shared run leaves generated variables alone (#219).
+  shared-service run leaves generated variables alone. A deployment's own run
+  handles them, keeping
+  [shared ones](#shared-across-deployments) in step across deployments.
 - **Rotating a shared service under one deployment would break the others.**
   With `--deployment`, rotating a service that deployment shares would
   invalidate a credential the others still use, so it is refused. That
@@ -243,6 +245,24 @@ the deployment target. The motivating case is a Vercel-cron `CRON_SECRET`.
 
 Selection is manifest-declared (the `generate` source), independent of the
 presence-driven provider detection above.
+
+### Shared across deployments
+
+In a [multi-deployment manifest](manifest.md#deployment-views), a generated
+variable declared at the root (top level, or in a root `variableGroup`)
+reaches every deployment, so it has **one value per target across all of
+them** (#219, [`generated-shared.ts`](../src/lib/generated-shared.ts)). One
+declared under a deployment stays its own.
+
+- **`secrets init` reuses existing values.** In any one deployment, if a sibling
+  deployment already holds the value, init copies it to the deployments lacking
+  it. Otherwise it mints one value for all. A value it can't read back (a
+  `sensitive` variable) is refused rather than diverged; rotate it instead.
+- **`secrets rotate` writes one fresh value everywhere.** Rotating it in any
+  one deployment writes one new value to every deployment.
+- **Sibling redeploys.** Every sibling whose value changed is redeployed after
+  the run's own deployment, so each runs on the new value. Each sibling's
+  project identity is pin-checked before anything is written.
 
 ## Environment-scoped services
 
