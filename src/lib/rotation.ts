@@ -182,6 +182,8 @@ export async function run(opts: RotationOptions): Promise<void> {
     sentryOrg: opts.sentryOrg,
     sentryProject: opts.sentryProject,
   });
+  for (const p of acting)
+    await p.preflight?.({ ...ctx, allowedTargets: scopeFor(p) });
   logGithubPlan(githubTargets);
 
   log(

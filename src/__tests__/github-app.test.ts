@@ -6,6 +6,7 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  checkGithubAppHookConfig,
   githubAppConfigFor,
   githubAppJwt,
   patchGithubAppHookConfig,
@@ -146,6 +147,19 @@ describe("githubAppJwt", () => {
   });
 });
 
+describe("checkGithubAppHookConfig", () => {
+  it("GETs the hook config as the App", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    await checkGithubAppHookConfig("jwt-1");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://api.github.com/app/hook/config",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+});
+
 describe("patchGithubAppHookConfig", () => {
   it("PATCHes the hook config with the URL and secret as the App", async () => {
     const fetchSpy = vi
@@ -165,12 +179,34 @@ describe("patchGithubAppHookConfig", () => {
     );
   });
 
-  it("throws a FatalError when GitHub rejects the request", async () => {
+  it("maps a 404 to the inactive-webhook remedy", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Not Found", { status: 404 }),
+    );
+    await expect(
+      patchGithubAppHookConfig("jwt-1", "https://x.test/hook", "s3cret"),
+    ).rejects.toThrow(/webhook is not active/);
+  });
+
+  it("maps a 401 to a Client ID / key mismatch hint", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("Bad credentials", { status: 401 }),
     );
     await expect(
       patchGithubAppHookConfig("jwt-1", "https://x.test/hook", "s3cret"),
-    ).rejects.toThrow(FatalError);
+    ).rejects.toThrow(/rejected the App JWT/);
+  });
+
+  it("throws a FatalError with GitHub's response for other failures", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Server Error", { status: 500 }),
+    );
+    await expect(
+      patchGithubAppHookConfig("jwt-1", "https://x.test/hook", "s3cret"),
+    ).rejects.toThrow(
+      new FatalError(
+        "GitHub API PATCH /app/hook/config failed (500): Server Error",
+      ),
+    );
   });
 });

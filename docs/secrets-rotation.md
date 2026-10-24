@@ -347,8 +347,14 @@ place of the numeric App ID.
   (so it also needs `--private-key-file`). Auto-detecting `secrets init`
   selects `github-app` only when the manifest declares the service. `init all`
   never selects it: it means Firebase and Sentry.
+- **Precondition: the App's webhook must be active.** Check **Active** and set
+  any URL under the App's settings → Webhook before the first `init`. GitHub
+  returns 404 on `/app/hook/config` for an App without an active webhook.
 - The preflight fails, before anything is minted, when `--private-key-file`,
-  the Client ID, or `webhookUrl` is missing.
+  the Client ID, or `webhookUrl` is missing. It then calls
+  `GET /app/hook/config` as the App. A 404 fails with the
+  inactive-webhook remedy, and a 401 with a Client ID / private key mismatch
+  hint, so neither leaves Vercel holding a secret GitHub lacks (#203).
 - Recovering from a failed `init`: once the vars exist, a re-run of `init`
   refuses, so finish with `secrets rotate github-app`, which re-mints the
   webhook secret and PATCHes GitHub.

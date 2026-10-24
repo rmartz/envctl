@@ -1,5 +1,6 @@
 import { generateSecretValue } from "../generated-secrets";
 import {
+  checkGithubAppHookConfig,
   githubAppJwt,
   githubAppKeyManualSteps,
   patchGithubAppHookConfig,
@@ -68,6 +69,13 @@ export const githubAppServiceProvider: ServiceProvider = {
   explicitInit: true,
   presenceKeys: (ctx) => [varsOf(ctx).webhookSecret, varsOf(ctx).privateKey],
   contractVars: (ctx) => [varsOf(ctx).privateKey, varsOf(ctx).webhookSecret],
+  // Prove the JWT is accepted and the App's webhook is active before a secret
+  // is minted, so a failure can't leave Vercel with a secret GitHub lacks.
+  preflight: async (ctx) => {
+    const cfg = requireConfig(ctx);
+    const { key } = readGithubAppPrivateKey(cfg.privateKeyFile);
+    await checkGithubAppHookConfig(githubAppJwt(cfg.clientId, key));
+  },
   init: async (ctx) => {
     const cfg = requireConfig(ctx);
     const { pem } = readGithubAppPrivateKey(cfg.privateKeyFile);
