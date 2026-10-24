@@ -133,6 +133,8 @@ describe("runBootstrap — blank project", () => {
       "--out",
       path.join(tmpDir, ".env.local"),
       "--force",
+      "--deployment-dir",
+      dir,
     ]);
     expect(verifySpy).toHaveBeenCalledTimes(1);
   });

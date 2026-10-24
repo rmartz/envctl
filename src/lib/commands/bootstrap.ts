@@ -161,13 +161,16 @@ function bootstrapPull(opts: BootstrapOptions): void {
     return;
   }
   // Bootstrap is idempotent and always refreshes the local dotenv, so it
-  // overwrites any existing file (--force).
+  // overwrites any existing file (--force). The deployment dir is forwarded so
+  // the pull reads the same project pin the push and secrets phases used.
   runConfigPull({ workingDir: opts.workingDir }, [
     "--env",
     "development",
     "--out",
     opts.out,
     "--force",
+    "--deployment-dir",
+    opts.deploymentDir,
   ]);
 }
 

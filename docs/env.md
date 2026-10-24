@@ -97,8 +97,9 @@ deployments:
 ```
 
 [`detectProject`](../src/lib/project.ts) then resolves the pinned project for
-`config push`, `config pull`, `secrets`, `bootstrap` and `check`, given the
-deployment dir (`--deployment-dir`). A pin is authoritative:
+`config push`, `config pull`, `secrets` and `bootstrap`, reading the pin from
+the `--deployment-dir` they are given. `check` validates the pin in the default
+`deployment/` dir only. A pin is authoritative:
 
 - If `.vercel/project.json` or `VERCEL_PROJECT_ID` names a **different
   project**, envctl refuses before any write.
