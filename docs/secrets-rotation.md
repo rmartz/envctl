@@ -332,17 +332,21 @@ place of the numeric App ID.
   never taken from argv or the environment, and never echoed or logged. A
   missing file or a file that isn't an RSA private key PEM fails the
   preflight.
-- **`secrets rotate github-app --private-key-file <pem>`** rotates the webhook
-  secret in this order: mint, push to Vercel, redeploy until `READY`, then
-  `PATCH /app/hook/config`. If any earlier step fails, GitHub keeps the old
-  secret. Between the redeploy and the PATCH, deliveries signed with the old
-  secret are rejected; redeliver them from the App's Advanced settings page if
-  needed. The PEM is needed only to sign the JWT.
-- **The private key is rotated by hand.** GitHub has no API to create an App
-  private key; keys are generated only on the App's settings page. Every
-  rotate that touches the App prints these steps as a warning: generate a new
-  key, replace the var with `vercel env rm` / `vercel env add … --sensitive`,
-  redeploy, then delete the old key on the settings page.
+- **`secrets rotate github-app --private-key-file <pem>`** treats the PEM as
+  the App's current key (#206). It runs in this order: mint a webhook secret,
+  push it and the PEM to Vercel, redeploy until `READY`, prove the key by
+  calling `GET /app` with an App JWT it signs, then `PATCH /app/hook/config`.
+  If any earlier step fails, GitHub keeps the old secret. Between the redeploy
+  and the PATCH, deliveries signed with the old secret are rejected; redeliver
+  them from the App's Advanced settings page if needed.
+- **Rotating the private key.** GitHub has no API to create an App private
+  key; keys are generated only on the App's settings page. So generate the new
+  key there, then pass its PEM to `secrets rotate github-app`. Once the key is
+  proven, rotate logs its fingerprint (`SHA256:…`, as the settings page shows
+  it). Delete the key it replaced, but keep any key another consumer, such as
+  a GitHub Actions secret, still uses. envctl never deletes App keys.
+  Passing the current key instead just re-pushes it alongside the new webhook
+  secret.
 - An unscoped `secrets rotate` includes the webhook secret when it is present
   (so it also needs `--private-key-file`). Auto-detecting `secrets init`
   selects `github-app` only when the manifest declares the service. `init all`

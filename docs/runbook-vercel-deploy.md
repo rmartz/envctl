@@ -307,9 +307,13 @@ envctl secrets init github-app --private-key-file ~/Downloads/my-app.pem
 # 5. Delete the PEM, or store it somewhere safe; rotation needs it again.
 ```
 
-To rotate the webhook secret later:
-`envctl secrets rotate github-app --private-key-file <pem>`. The private key
-can't be rotated by envctl; the command prints the manual steps
+To rotate later, run
+`envctl secrets rotate github-app --private-key-file <pem>`. It always
+re-mints the webhook secret and pushes the PEM as the App's key. To rotate the
+private key too, first generate a new key on the App's settings page and pass
+that PEM. After the redeploy, envctl proves the key with `GET /app` and logs
+its `SHA256:` fingerprint. Then delete the replaced key on the settings page,
+unless something else, such as a GitHub Actions secret, still uses it
 ([details](secrets-rotation.md#github-app)).
 
 **How you know it worked:** the run logs each target's two pushed vars, the

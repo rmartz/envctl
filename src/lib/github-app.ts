@@ -1,7 +1,12 @@
-import { createPrivateKey, sign, type KeyObject } from "crypto";
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  type KeyObject,
+} from "crypto";
 import * as fs from "fs";
 
-import { err, FatalError } from "./logger";
+import { err } from "./logger";
 import { effectiveValue, parseManifest, type ServiceDecl } from "./manifest";
 
 // The GitHub App credential contract (#201): a Vercel-hosted App server reads
@@ -123,91 +128,12 @@ export function readGithubAppPrivateKey(file: string): {
   return { pem: `${pem}\n`, key };
 }
 
-const base64url = (input: string | Buffer): string =>
-  Buffer.from(input).toString("base64url");
-
 /**
- * An App JWT (RS256): `iss` is the Client ID, `iat` backdated 60s for clock
- * drift, and a 9-minute lifetime (GitHub's maximum is 10).
+ * The key's SHA-256 fingerprint as GitHub shows it on the App's settings page:
+ * `SHA256:` + base64 of the SHA-256 of the public key's DER (SPKI) encoding.
+ * Public information: it identifies the key without revealing it.
  */
-export function githubAppJwt(
-  clientId: string,
-  key: KeyObject,
-  now = Math.floor(Date.now() / 1000),
-): string {
-  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const payload = base64url(
-    JSON.stringify({ iat: now - 60, exp: now + 540, iss: clientId }),
-  );
-  const signature = sign(
-    "RSA-SHA256",
-    Buffer.from(`${header}.${payload}`),
-    key,
-  );
-  return `${header}.${payload}.${base64url(signature)}`;
-}
-
-// Call `/app/hook/config` as the App, mapping GitHub's telling statuses to an
-// actionable error (#203): a 404 means the App has no active webhook, a 401
-// that the JWT was rejected.
-async function githubAppHookRequest(
-  jwt: string,
-  method: "GET" | "PATCH",
-  body?: unknown,
-): Promise<void> {
-  const base = process.env.GITHUB_API_URL ?? "https://api.github.com";
-  const res = await fetch(`${base}/app/hook/config`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      Accept: "application/vnd.github+json",
-      "Content-Type": "application/json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (res.ok) return;
-  if (res.status === 404)
-    err(
-      "The GitHub App's webhook is not active (GitHub returned 404 for /app/hook/config): enable it in the App's settings (check Active and set a URL), then run `envctl secrets rotate github-app`, or re-run `secrets init` if nothing was pushed yet.",
-    );
-  if (res.status === 401)
-    err(
-      "GitHub rejected the App JWT (401): check that the Client ID in the deployment config belongs to the App whose private key you passed.",
-    );
-  throw new FatalError(
-    `GitHub API ${method} /app/hook/config failed (${res.status}): ${await res.text()}`,
-  );
-}
-
-/** Assert the App's webhook config is reachable as the App (`GET /app/hook/config`). */
-export function checkGithubAppHookConfig(jwt: string): Promise<void> {
-  return githubAppHookRequest(jwt, "GET");
-}
-
-/** Point the App's webhook at `url`, signed with `secret` (`PATCH /app/hook/config`). */
-export function patchGithubAppHookConfig(
-  jwt: string,
-  url: string,
-  secret: string,
-): Promise<void> {
-  return githubAppHookRequest(jwt, "PATCH", {
-    url,
-    secret,
-    content_type: "json",
-  });
-}
-
-/**
- * Why the App private key is rotated by hand, and how. GitHub has no API to
- * create an App private key: keys are generated only on the App's settings page.
- */
-export function githubAppKeyManualSteps(vars: GithubAppVarNames): string {
-  const key = vars.privateKey;
-  return [
-    `GitHub App private keys can only be generated on the App's settings page (GitHub has no API for it), so envctl does not rotate ${key}. Rotate it by hand:`,
-    `  1. GitHub → Settings → Developer settings → GitHub Apps → your App → "Generate a private key"; save the PEM locally`,
-    `  2. For each Vercel target: \`vercel env rm ${key} <target>\` then \`vercel env add ${key} <target> --sensitive < new-key.pem\``,
-    `  3. Redeploy and verify, then delete the old key on the App's settings page`,
-  ].join("\n");
+export function githubAppKeyFingerprint(key: KeyObject): string {
+  const der = createPublicKey(key).export({ type: "spki", format: "der" });
+  return `SHA256:${createHash("sha256").update(der).digest("base64")}`;
 }

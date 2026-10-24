@@ -1,14 +1,17 @@
 import { generateSecretValue } from "../generated-secrets";
 import {
-  checkGithubAppHookConfig,
-  githubAppJwt,
-  githubAppKeyManualSteps,
-  patchGithubAppHookConfig,
+  githubAppKeyFingerprint,
   readGithubAppPrivateKey,
   resolveGithubAppVars,
   type GithubAppConfig,
 } from "../github-app";
-import { err, log, warn } from "../logger";
+import {
+  checkGithubAppHookConfig,
+  checkGithubAppKey,
+  githubAppJwt,
+  patchGithubAppHookConfig,
+} from "../github-app-api";
+import { err, log } from "../logger";
 import type { ServiceContext, ServiceProvider } from "./service";
 
 const varsOf = (ctx: ServiceContext) =>
@@ -39,27 +42,54 @@ function inScopeTargets(ctx: ServiceContext): string[] {
 const secretType = (target: string) =>
   target === "development" ? "encrypted" : "sensitive";
 
-// PATCH the App's webhook to the configured URL with `secret`, signing the
-// request as the App. Run only after the redeploy proves the secret live.
+// Push the App private key and webhook secret to each target.
+async function pushSecrets(
+  ctx: ServiceContext,
+  cfg: Required<GithubAppConfig>,
+  targets: string[],
+  pem: string,
+  secret: string,
+): Promise<void> {
+  const { envs } = await ctx.deployment.listEnvVars();
+  for (const target of targets) {
+    for (const [key, value] of [
+      [cfg.vars.privateKey, pem],
+      [cfg.vars.webhookSecret, secret],
+    ] as const)
+      await ctx.deployment.setEnvForTarget(
+        key,
+        value,
+        target,
+        envs,
+        secretType(target),
+      );
+    log(
+      `  [${target}] Pushed ${cfg.vars.privateKey} and ${cfg.vars.webhookSecret}`,
+    );
+  }
+}
+
+// Run once the redeploy is READY: prove the pushed key authenticates as the
+// App (`GET /app`), then PATCH the App's webhook to the configured URL with
+// `secret`. A failed proof leaves GitHub's webhook config untouched.
 async function activateWebhook(
   cfg: Required<GithubAppConfig>,
   secret: string,
-): Promise<void> {
+): Promise<string> {
   const { key } = readGithubAppPrivateKey(cfg.privateKeyFile);
-  await patchGithubAppHookConfig(
-    githubAppJwt(cfg.clientId, key),
-    cfg.webhookUrl,
-    secret,
-  );
+  const jwt = githubAppJwt(cfg.clientId, key);
+  await checkGithubAppKey(jwt);
+  await patchGithubAppHookConfig(jwt, cfg.webhookUrl, secret);
   log(`  Pointed the GitHub App webhook at ${cfg.webhookUrl}`);
+  return githubAppKeyFingerprint(key);
 }
 
-// A Vercel-hosted GitHub App server (#201). init pushes the App private key
-// (from a local PEM) and a freshly minted webhook secret as sensitive vars;
-// rotate re-mints the webhook secret. Either way GitHub's webhook config is
-// PATCHed only in `activate`, which the engine runs after the redeploy is READY,
-// so a failed push or deploy leaves GitHub on the old secret. The private key
-// itself cannot be minted by API, so rotate only prints its manual steps.
+// A Vercel-hosted GitHub App server (#201). init and rotate both push the App
+// private key from the local PEM and a freshly minted webhook secret as
+// sensitive vars, so a rotate given a newly generated key rotates both (#206).
+// GitHub's webhook config is PATCHed only in `activate`, which the engine runs
+// after the redeploy is READY and after the key is proven against `GET /app`,
+// so a failed push, deploy or proof leaves GitHub on the old secret.
 export const githubAppServiceProvider: ServiceProvider = {
   provider: "github-app",
   displayName: "GitHub App",
@@ -81,36 +111,20 @@ export const githubAppServiceProvider: ServiceProvider = {
     const { pem } = readGithubAppPrivateKey(cfg.privateKeyFile);
     const secret = generateSecretValue();
     log("Initializing GitHub App secrets...");
-    const { envs } = await ctx.deployment.listEnvVars();
-    for (const target of inScopeTargets(ctx)) {
-      const type = secretType(target);
-      await ctx.deployment.setEnvForTarget(
-        cfg.vars.privateKey,
-        pem,
-        target,
-        envs,
-        type,
-      );
-      await ctx.deployment.setEnvForTarget(
-        cfg.vars.webhookSecret,
-        secret,
-        target,
-        envs,
-        type,
-      );
-      log(
-        `  [${target}] Pushed ${cfg.vars.privateKey} and ${cfg.vars.webhookSecret}`,
-      );
-    }
-    return { activate: () => activateWebhook(cfg, secret) };
+    await pushSecrets(ctx, cfg, inScopeTargets(ctx), pem, secret);
+    return {
+      activate: async () => {
+        await activateWebhook(cfg, secret);
+      },
+    };
   },
   rotate: async (ctx) => {
     const cfg = requireConfig(ctx);
-    warn(githubAppKeyManualSteps(cfg.vars));
+    const { pem } = readGithubAppPrivateKey(cfg.privateKeyFile);
     const secret = generateSecretValue();
-    log("Rotating GitHub App webhook secret...");
+    log("Rotating GitHub App private key and webhook secret...");
     const { envs } = await ctx.deployment.listEnvVars();
-    // Every provisioned target (either var present) gets the new secret, so
+    // Every provisioned target (either var present) gets the new values, so
     // GitHub is never PATCHed with a secret the server lacks.
     const targets = inScopeTargets(ctx).filter((target) =>
       [cfg.vars.webhookSecret, cfg.vars.privateKey].some((key) =>
@@ -121,19 +135,16 @@ export const githubAppServiceProvider: ServiceProvider = {
       err(
         `No in-scope Vercel target holds ${cfg.vars.webhookSecret} or ${cfg.vars.privateKey} — nothing to rotate.`,
       );
-    for (const target of targets) {
-      await ctx.deployment.setEnvForTarget(
-        cfg.vars.webhookSecret,
-        secret,
-        target,
-        envs,
-        secretType(target),
-      );
-      log(`  [${target}] Rotated ${cfg.vars.webhookSecret}`);
-    }
+    await pushSecrets(ctx, cfg, targets, pem, secret);
     return {
-      activate: () => activateWebhook(cfg, secret),
-      // The retired secret dies with the PATCH; there is nothing to revoke.
+      activate: async () => {
+        const fingerprint = await activateWebhook(cfg, secret);
+        log(
+          `  ${cfg.vars.privateKey} is now the App key ${fingerprint} (proven against GET /app). If it replaced an older key that nothing else uses, delete that key on the App's settings page; keep any key other consumers, such as GitHub Actions secrets, still use.`,
+        );
+      },
+      // The retired webhook secret dies with the PATCH, and envctl cannot
+      // delete App keys (GitHub has no API for it).
       invalidate: () => Promise.resolve(),
       retiredKeyWarnings: () => [],
     };
