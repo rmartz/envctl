@@ -8,148 +8,21 @@ import {
   parseDeploymentEnv,
   vercelTarget,
 } from "../environments";
-import type {
-  DeploymentDecl,
-  GithubDecl,
-  GithubSecretDecl,
-  ResolvedManifest,
-  ServiceDecl,
-  VariableDecl,
-  VariableGroup,
-  VariableSource,
-} from "./types";
+import {
+  asStringArray,
+  isRecord,
+  parseDeployments,
+  parseGithub,
+  parseServices,
+  parseVariableGroups,
+  parseVariables,
+} from "./parse-fields";
+import type { ResolvedManifest } from "./types";
 
 export const MANIFEST_FILENAME = "manifest.yml";
 
 export function manifestFilePath(deploymentDir: string): string {
   return path.join(deploymentDir, MANIFEST_FILENAME);
-}
-
-// ─── Field parsers (each tolerates malformed input by ignoring it) ──────────
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((v): v is string => typeof v === "string");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function parseVariableSource(spec: unknown): VariableSource | undefined {
-  if (!isRecord(spec)) return undefined;
-  const { value, generate } = spec;
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  )
-    return { kind: "value", value: String(value) };
-  if (generate === true) return { kind: "generate" };
-  return undefined;
-}
-
-function parseVariables(raw: unknown): VariableDecl[] {
-  if (!isRecord(raw)) return [];
-  const out: VariableDecl[] = [];
-  for (const [name, spec] of Object.entries(raw)) {
-    const source = parseVariableSource(spec);
-    if (source) out.push({ name, source });
-  }
-  return out;
-}
-
-function parseStringMap(raw: unknown): Record<string, string> {
-  if (!isRecord(raw)) return {};
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === "string") out[key] = value;
-  }
-  return out;
-}
-
-function parseServices(raw: unknown): ServiceDecl[] {
-  if (!Array.isArray(raw)) return [];
-  const out: ServiceDecl[] = [];
-  for (const item of raw) {
-    if (!isRecord(item) || typeof item.provider !== "string") continue;
-    const service: {
-      provider: string;
-      environments?: string[];
-      variables?: Record<string, string>;
-      webhookUrl?: string;
-    } = { provider: item.provider };
-    if ("environments" in item)
-      service.environments = asStringArray(item.environments);
-    if ("variables" in item) service.variables = parseStringMap(item.variables);
-    if (typeof item.webhookUrl === "string")
-      service.webhookUrl = item.webhookUrl;
-    out.push(service);
-  }
-  return out;
-}
-
-function parseDeployments(raw: unknown): DeploymentDecl[] {
-  if (!Array.isArray(raw)) return [];
-  const out: DeploymentDecl[] = [];
-  for (const item of raw) {
-    if (!isRecord(item) || typeof item.provider !== "string") continue;
-    const targets: Record<string, string> = {};
-    if (isRecord(item.targets)) {
-      for (const [env, target] of Object.entries(item.targets)) {
-        if (typeof target === "string") targets[env] = target;
-      }
-    }
-    const { projectId, teamId } = item;
-    out.push({
-      provider: item.provider,
-      targets,
-      ...(typeof projectId === "string" && projectId ? { projectId } : {}),
-      ...(typeof teamId === "string" && teamId ? { teamId } : {}),
-    });
-  }
-  return out;
-}
-
-function parseVariableGroups(raw: unknown): VariableGroup[] {
-  if (!Array.isArray(raw)) return [];
-  const out: VariableGroup[] = [];
-  for (const item of raw) {
-    if (!isRecord(item) || typeof item.name !== "string") continue;
-    const variables = parseVariables(item.variables);
-    out.push(
-      "environments" in item
-        ? {
-            name: item.name,
-            environments: asStringArray(item.environments),
-            variables,
-          }
-        : { name: item.name, variables },
-    );
-  }
-  return out;
-}
-
-// An entry without both `variable` and `environment` has nothing to mirror, so
-// it is dropped like any other malformed item.
-function parseGithub(raw: unknown): GithubDecl | undefined {
-  if (!isRecord(raw)) return undefined;
-  const secrets: GithubSecretDecl[] = [];
-  for (const item of Array.isArray(raw.secrets) ? raw.secrets : []) {
-    if (!isRecord(item)) continue;
-    const { variable, environment, name, githubEnvironment } = item;
-    if (typeof variable !== "string" || typeof environment !== "string")
-      continue;
-    secrets.push({
-      variable,
-      environment,
-      ...(typeof name === "string" ? { name } : {}),
-      ...(typeof githubEnvironment === "string" ? { githubEnvironment } : {}),
-    });
-  }
-  return typeof raw.repo === "string"
-    ? { repo: raw.repo, secrets }
-    : { secrets };
 }
 
 // Per-environment overlay files hold only literal `value` overrides. They share
@@ -241,7 +114,9 @@ function parseLegacy(deploymentDir: string): ResolvedManifest {
   return {
     environments,
     deployments:
-      environments.length > 0 ? [{ provider: "vercel", targets }] : [],
+      environments.length > 0
+        ? [{ name: "vercel", provider: "vercel", targets }]
+        : [],
     services: [],
     variables: [],
     variableGroups: [],

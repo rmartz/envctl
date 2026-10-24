@@ -64,6 +64,7 @@ describe("manifest", () => {
     it("parses a deployment's explicit env→target map", () => {
       expect(parseManifest(deployDir).deployments).toEqual([
         {
+          name: "vercel",
           provider: "vercel",
           targets: {
             production: "production",
@@ -76,8 +77,12 @@ describe("manifest", () => {
 
     it("parses services, carrying an environment scope when declared", () => {
       expect(parseManifest(deployDir).services).toEqual([
-        { provider: "firebase" },
-        { provider: "action-tracking", environments: ["production"] },
+        { name: "firebase", provider: "firebase" },
+        {
+          name: "action-tracking",
+          provider: "action-tracking",
+          environments: ["production"],
+        },
       ]);
     });
 
@@ -95,6 +100,7 @@ describe("manifest", () => {
       );
       expect(parseManifest(deployDir).services).toEqual([
         {
+          name: "firebase",
           provider: "firebase",
           variables: {
             privateKey: "FB_PRIVATE_KEY",
@@ -175,6 +181,7 @@ describe("manifest", () => {
       expect(manifest.environments).toEqual(["production", "staging"]);
       expect(manifest.deployments).toEqual([
         {
+          name: "vercel",
           provider: "vercel",
           targets: { production: "production", staging: "preview" },
         },

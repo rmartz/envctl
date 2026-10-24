@@ -11,5 +11,10 @@ export type {
 } from "./types";
 export { variableVisibility } from "./types";
 export { MANIFEST_FILENAME, manifestFilePath, parseManifest } from "./parse";
+export {
+  manifestErrors,
+  multipleDeploymentsError,
+  soleDeployment,
+} from "./deployments";
 export { effectiveValue } from "./resolve";
 export { setManifestEnvironments, setManifestTarget } from "./write";

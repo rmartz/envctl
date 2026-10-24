@@ -8,7 +8,9 @@ import {
 } from "./commands/deployment-config";
 import { FatalError } from "./logger";
 import {
+  manifestErrors,
   manifestFilePath,
+  multipleDeploymentsError,
   parseManifest,
   type ResolvedManifest,
 } from "./manifest";
@@ -75,14 +77,22 @@ export function checkStatic(workingDir: string): Finding[] {
   const declared = new Set(manifest.environments);
   const validTargets = new Set<string>(VALID_TARGETS);
   const isVercel = (manifest.deployments[0]?.provider ?? "vercel") === "vercel";
+  const tooMany = multipleDeploymentsError(manifest);
 
   return [
-    ...checkEnvResolution(manifest, configDir, isVercel, validTargets),
+    ...manifestErrors(manifest).map((message) => mkError(message)),
     ...checkDeploymentTargets(manifest, declared, validTargets),
     ...checkOrphanOverlays(configDir, declared),
     ...checkProvidersRegistered(manifest),
     ...checkScopes(manifest, declared),
-    ...checkIdentity(workingDir, configDir, isVercel),
+    // Env→target resolution and identity act on the one deployment commands
+    // use; a manifest with several is reported instead (#211).
+    ...(tooMany
+      ? [mkError(tooMany)]
+      : [
+          ...checkEnvResolution(manifest, configDir, isVercel, validTargets),
+          ...checkIdentity(workingDir, configDir, isVercel),
+        ]),
   ];
 }
 

@@ -103,6 +103,48 @@ resolved model:
   and every per-env var treated as a literal `value` overlay. A project with no
   config at all degrades to an empty model.
 
+Field parsing lives in [`parse-fields.ts`](../src/lib/manifest/parse-fields.ts);
+`parse.ts` assembles the model and reads the overlays.
+
+## Named deployments and services
+
+The foundation of epic [#210](https://github.com/rmartz/envctl/issues/210)
+(#211). Every service and deployment has a `name`, which defaults to its
+`provider`. Two instances of the same provider therefore need explicit names. A
+deployment can also narrow what reaches it:
+
+```yaml
+services:
+  - provider: sentry # name: sentry
+  - name: gate-app
+    provider: github-app
+deployments:
+  - name: gate
+    provider: vercel
+    services: [gate-app, sentry] # absent ⇒ every service
+    environments: [production] # absent ⇒ every declared environment
+    variables: # only this deployment; same syntax as top-level
+      PR_APP_ROLE: { value: gate }
+    targets: { production: production }
+```
+
+[`manifestErrors(manifest)`](../src/lib/manifest/deployments.ts) is a pure
+function that returns the structural errors `check` reports:
+
+- duplicate service names;
+- duplicate deployment names;
+- a deployment referencing an undefined service;
+- a deployment scoped to an undeclared environment.
+
+**Commands still act on one deployment per manifest.**
+[`soleDeployment`](../src/lib/manifest/deployments.ts) returns it, and it is
+what `config push`, `config pull`, `secrets`, `bootstrap` and env→target
+resolution use. It **refuses** a manifest declaring several deployments,
+naming them, instead of silently acting on the first. A silent pick could send
+one project's secrets to another. `check` reports the same refusal as an error.
+Selecting a deployment from the CLI is the next step of #210. Until then, keep
+one deployment per `--deployment-dir`.
+
 [`effectiveValue(manifest, env, name)`](../src/lib/manifest/resolve.ts) resolves
 a variable's literal value for an environment: a per-env overlay override wins
 over the declared base `value`; a non-literal source (e.g. `generate`) resolves

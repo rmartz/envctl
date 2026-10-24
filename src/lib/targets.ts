@@ -1,5 +1,5 @@
 import { vercelTarget } from "./environments";
-import { parseManifest } from "./manifest";
+import { parseManifest, soleDeployment } from "./manifest";
 
 // Env → provider infrastructure-target resolution (#87). The manifest's
 // `deployments[].targets` map is authoritative; the name convention
@@ -13,9 +13,8 @@ import { parseManifest } from "./manifest";
 export function envTargetResolver(
   deploymentDir: string,
 ): (envName: string) => string {
-  const manifest = parseManifest(deploymentDir);
-  const vercel = manifest.deployments.find((d) => d.provider === "vercel");
-  const targets = vercel?.targets ?? {};
+  const deployment = soleDeployment(parseManifest(deploymentDir));
+  const targets = deployment?.provider === "vercel" ? deployment.targets : {};
   return (envName) => targets[envName] ?? vercelTarget(envName);
 }
 
