@@ -100,7 +100,13 @@ function parseDeployments(raw: unknown): DeploymentDecl[] {
         if (typeof target === "string") targets[env] = target;
       }
     }
-    out.push({ provider: item.provider, targets });
+    const { projectId, teamId } = item;
+    out.push({
+      provider: item.provider,
+      targets,
+      ...(typeof projectId === "string" && projectId ? { projectId } : {}),
+      ...(typeof teamId === "string" && teamId ? { teamId } : {}),
+    });
   }
   return out;
 }

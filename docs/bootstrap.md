@@ -47,8 +47,8 @@ Bootstrap is safe to re-run, including after a partial failure:
 
 Before making any change, bootstrap fails fast on missing prerequisites:
 
-- a resolvable Vercel project (a linked `.vercel/project.json`, or
-  `VERCEL_PROJECT_ID`) and a Vercel token;
+- a resolvable Vercel project (a [manifest pin](env.md#pinning-the-vercel-project),
+  a linked `.vercel/project.json`, or `VERCEL_PROJECT_ID`) and a Vercel token;
 - the **Vercel CLI** on `PATH` (for the pull phase — unless `--no-pull`);
 - an authenticated **`gcloud`** when Firebase is configured;
 - a **Sentry token** when Sentry is configured.

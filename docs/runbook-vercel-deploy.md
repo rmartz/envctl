@@ -43,9 +43,14 @@ follow the links to understand _how it happens_.
 Run these before any scenario below. A run that skips them fails deeper in, with
 a less obvious message.
 
-1. **A linked Vercel project.** The project must contain
-   `.vercel/project.json` (created by `vercel link`). `config push`,
-   `config pull`, and secrets flows all require it.
+1. **A resolvable Vercel project.** Either pin it in the deployment dir's
+   `manifest.yml` (`projectId`, plus `teamId`, on the vercel deployment entry;
+   see [pinning the project](env.md#pinning-the-vercel-project)), or link the
+   directory with `vercel link` (`.vercel/project.json`). `config push`,
+   `config pull`, and secrets flows all need one. **Pin it whenever one repo
+   deploys to more than one Vercel project.** Each deployment dir then carries
+   its own project, and envctl refuses to run if a link or `VERCEL_PROJECT_ID`
+   names a different one.
 2. **Auth for each provider in play.** Run **`envctl auth status` first** — it
    reports `vercel`, `gcp`, and `sentry`, each as authenticated (with its source)
    or not (with a hint):
@@ -117,7 +122,7 @@ operator needs:
 | `config push`                                                | Upsert public vars to Vercel                              | `--env`, `--deployment-dir`, `--dry-run`                             |
 | `secrets init [firebase\|sentry]`                            | Mint secrets for a fresh project (auto-detect if omitted) | `--env`, `--deployment-dir`, `--no-invalidate`, `--refresh-previews` |
 | `secrets rotate`                                             | Rotate existing secrets, redeploy, invalidate             | `--env`, `--deployment-dir`, `--no-invalidate`, `--refresh-previews` |
-| `config pull`                                                | Materialize a local dotenv from a Vercel env              | `--env`, `--out`, `--force`                                          |
+| `config pull`                                                | Materialize a local dotenv from a Vercel env              | `--env`, `--out`, `--force`, `--deployment-dir`                      |
 | `auth status`                                                | Report provider auth (vercel / gcp / sentry)              | —                                                                    |
 
 Shared flags: **`--env <name|development|all>`** selects the deploy

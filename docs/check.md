@@ -42,11 +42,13 @@ existing manifest reader, the [env→target resolver](env.md) (#87), and the
 | Overlay ↔ declaration     | every `deployment/<env>.yml` overlay matches a declared environment (no orphan overlays)         | error    |
 | Providers registered      | every deployment and service `provider:` is registered                                           | error    |
 | Scopes                    | service / variable-group `environments:` reference only declared environments                    | error    |
-| Provider identity         | the Vercel identity resolves (`.vercel/project.json` or `VERCEL_PROJECT_ID`)                     | warning  |
+| Provider identity         | the Vercel identity resolves (manifest pin, `.vercel/project.json` or `VERCEL_PROJECT_ID`)       | warning  |
+| Pin agreement             | a manifest `projectId`/`teamId` pin matches the `.vercel` link and the `VERCEL_*` vars           | error    |
 
 Provider identity is a **warning**, not an error: a manifest is still valid
 without local Vercel linkage — identity is only needed once you actually push or
-rotate.
+rotate. A [pin](env.md#pinning-the-vercel-project) that disagrees with the link
+or the env vars is an **error**, because every write command would refuse it.
 
 ## Live completeness (`--live`)
 

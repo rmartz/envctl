@@ -79,6 +79,39 @@ against the shared staging project.
 > differently-named env, that env becomes the dev source — declare targets
 > deliberately when more than one env resolves to `preview`.
 
+### Pinning the Vercel project
+
+By default envctl acts on the project named by `VERCEL_PROJECT_ID` /
+`VERCEL_TEAM_ID`, else the directory's `.vercel/project.json` link. A repo that
+deploys to several Vercel projects can't use a single link. Each of its
+deployment dirs instead **pins** its own project on the vercel deployment entry
+(#208):
+
+```yaml
+# deployment/gate/manifest.yml
+deployments:
+  - provider: vercel
+    projectId: prj_…
+    teamId: team_… # optional, but `config pull` needs a team
+    targets: { production: production }
+```
+
+[`detectProject`](../src/lib/project.ts) then resolves the pinned project for
+`config push`, `config pull`, `secrets` and `bootstrap`, reading the pin from
+the `--deployment-dir` they are given. `check` validates the pin in the default
+`deployment/` dir only. A pin is authoritative:
+
+- If `.vercel/project.json` or `VERCEL_PROJECT_ID` names a **different
+  project**, envctl refuses before any write.
+- If the pin sets `teamId` and the link or `VERCEL_TEAM_ID` names a
+  **different team**, envctl refuses.
+- Without `teamId`, the team comes from `VERCEL_TEAM_ID` or the link.
+
+Pinning makes the deployment dir the single source of truth for which project
+receives its secrets: running against the wrong dir fails rather than leaking
+one project's key into another. A manifest without a pin resolves exactly as
+before. Empty `VERCEL_*` vars count as unset.
+
 ## Defining environments
 
 ```bash

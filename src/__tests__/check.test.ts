@@ -234,6 +234,24 @@ describe("checkStatic — deployment identity (AC6)", () => {
     writeManifest(VALID);
     expect(warnings(checkStatic(tmpDir))).toEqual([]);
   });
+
+  const PINNED = VALID.replace(
+    "  - provider: vercel\n",
+    "  - provider: vercel\n    projectId: prj_pin\n",
+  );
+
+  it("does not warn when the manifest pins a project", () => {
+    vi.stubEnv("VERCEL_PROJECT_ID", "");
+    writeManifest(PINNED);
+    expect(warnings(checkStatic(tmpDir))).toEqual([]);
+  });
+
+  it("errors when the pin disagrees with VERCEL_PROJECT_ID", () => {
+    writeManifest(PINNED);
+    expect(hasError(checkStatic(tmpDir), /pins Vercel project prj_pin/)).toBe(
+      true,
+    );
+  });
 });
 
 describe("runCheck — command behavior (AC7)", () => {

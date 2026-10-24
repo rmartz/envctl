@@ -110,7 +110,7 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
   }
 
   if (opts.refreshPreviews) {
-    const project = detectProject(opts.workingDir);
+    const project = detectProject(opts.workingDir, opts.deploymentDir);
     const client = new VercelClient(token, project.projectId, project.teamId);
     await refreshPreviewDeployments(client);
   }

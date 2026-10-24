@@ -37,6 +37,14 @@ export interface DeploymentDecl {
   readonly provider: string;
   /** deploy-environment name → provider infrastructure target. */
   readonly targets: Readonly<Record<string, string>>;
+  /**
+   * The provider project this deployment dir is pinned to (#208). When set it
+   * wins over `.vercel/project.json` and `VERCEL_PROJECT_ID`, and either of
+   * those naming a different project is refused.
+   */
+  readonly projectId?: string;
+  /** The pinned project's team (owner); unset ⇒ resolved as before. */
+  readonly teamId?: string;
 }
 
 /**
