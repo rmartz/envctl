@@ -138,8 +138,8 @@ function that returns the structural errors `check` reports:
 
 **Commands still act on one deployment per manifest.**
 [`soleDeployment`](../src/lib/manifest/deployments.ts) returns it, and it is
-what `config push`, `config pull`, `secrets`, `bootstrap` and env→target
-resolution use. It **refuses** a manifest declaring several deployments,
+what `config push`, `config pull`, `secrets`, `bootstrap`, `env add` and
+env→target resolution use. It **refuses** a manifest declaring several deployments,
 naming them, instead of silently acting on the first. A silent pick could send
 one project's secrets to another. `check` reports the same refusal as an error.
 Selecting a deployment from the CLI is the next step of #210. Until then, keep

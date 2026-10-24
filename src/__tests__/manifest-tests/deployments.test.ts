@@ -5,6 +5,7 @@ import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { checkStatic } from "../../lib/check";
+import { runEnvAdd } from "../../lib/commands/env";
 import { FatalError } from "../../lib/logger";
 import {
   manifestErrors,
@@ -173,6 +174,16 @@ describe("soleDeployment", () => {
     expect(() => resolveProjectDeployment(deployDir, workingDir)).toThrow(
       FatalError,
     );
+  });
+
+  it("makes env add refuse before writing the environment list", () => {
+    makeManifest(TWO_DEPLOYMENTS);
+    const envList = path.join(deployDir, "environments.yml");
+    fs.writeFileSync(envList, "active:\n  - production\n");
+    expect(() =>
+      runEnvAdd({ workingDir }, ["qa", "--target", "preview"]),
+    ).toThrow(FatalError);
+    expect(fs.readFileSync(envList, "utf-8")).toBe("active:\n  - production\n");
   });
 });
 

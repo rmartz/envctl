@@ -2,7 +2,7 @@ import * as fs from "fs";
 
 import type { CommandContext } from "../cli/registry";
 import { listActiveEnvs } from "../environments";
-import { setManifestTarget } from "../manifest";
+import { parseManifest, setManifestTarget, soleDeployment } from "../manifest";
 import { err, log, warn } from "../logger";
 import { envTargetResolver } from "../targets";
 import {
@@ -75,6 +75,9 @@ export function runEnvAdd(ctx: CommandContext, args: string[]): void {
   requireConfig(ctx);
 
   const dir = deploymentDir(ctx.workingDir);
+  // The target is written onto the manifest's deployment, so refuse before any
+  // write when it can't say which one (#211).
+  soleDeployment(parseManifest(dir));
   const active = listActiveEnvs(dir);
   if (active.includes(name)) {
     warn(`'${name}' is already an active environment — config unchanged.`);
