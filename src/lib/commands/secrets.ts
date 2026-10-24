@@ -18,6 +18,7 @@ import { parseSecretsArgs, type SecretsOptions } from "./secrets-args";
 import { dispatchRotation, runWithGeneratedSecrets } from "./secrets-dispatch";
 import {
   detectConfiguredServices,
+  assertServiceListed,
   resolveAutoInit,
   validateInitConfig,
 } from "./secrets-plan";
@@ -75,6 +76,13 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
   // secrets included — is written.
   if (init === "posthog" || opts.provider === "posthog")
     err(posthogManualSteps(posthogVarsFor(opts.deploymentDir)));
+  const named = opts.provider ?? init;
+  for (const provider of named === "all"
+    ? ["firebase", "sentry"]
+    : named
+      ? [named]
+      : [])
+    assertServiceListed(opts.deploymentDir, provider);
   if (init)
     validateInitConfig(
       init,

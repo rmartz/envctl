@@ -19,10 +19,14 @@ envctl config push [OPTIONS]
 
 ## What it does
 
-Reads the active environments from `<deployment-dir>/environments.yml` and each
-environment's values from `<deployment-dir>/{env}.yml` (see the
-[deployment-config model](env.md#deployment-configuration-model)), then, for
-each resolved Vercel target, **upserts** every variable:
+Reads the active environments from `<deployment-dir>/environments.yml` (or a
+[deployment view](manifest.md#deployment-views)'s environments). Each
+environment's public variables are then its manifest literals — every
+`{ value: … }` declared at the top level, in a group scoped to it, or on the
+selected deployment — with `<deployment-dir>/{env}.yml` overriding them (see
+the [deployment-config model](env.md#deployment-configuration-model)). A
+`generate`d or service variable never contributes a value. For each resolved
+Vercel target, push then **upserts** every variable:
 
 - an existing variable is **updated in place** (`updateEnvVar`, PATCH) — the
   edit resends the record's full descriptor (`key`/`type`/`target`) with the new
@@ -66,6 +70,7 @@ no dedicated YAML file of its own.
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `--env <name\|development\|all>` | Push one named environment, the implicit `development` target, or all of them (default `all` — every active env plus `development`). |
 | `--deployment-dir <path>`        | Deployment config directory, resolved against the project root (default `deployment`).                                               |
+| `--deployment <name>`            | Act on that directory's named deployment (its [view](manifest.md#deployment-views)).                                                 |
 | `--dry-run`                      | Print the intended plan (which keys would be created/updated per target) without making any Vercel API calls.                        |
 
 Always preview with `--dry-run` first when pushing to an unfamiliar project.

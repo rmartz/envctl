@@ -10,11 +10,10 @@ import { FatalError } from "./logger";
 import {
   manifestErrors,
   manifestFilePath,
-  multipleDeploymentsError,
   parseManifest,
   type ResolvedManifest,
 } from "./manifest";
-import { detectProject, projectPin } from "./project";
+import { detectProject, missingSharedPin, projectPin } from "./project";
 import { KNOWN_DEPLOYMENT_PROVIDERS } from "./providers/registry";
 import { serviceProviders } from "./providers/service";
 import { envTargetResolver } from "./targets";
@@ -76,24 +75,51 @@ export function checkStatic(workingDir: string): Finding[] {
 
   const declared = new Set(manifest.environments);
   const validTargets = new Set<string>(VALID_TARGETS);
-  const isVercel = (manifest.deployments[0]?.provider ?? "vercel") === "vercel";
-  const tooMany = multipleDeploymentsError(manifest);
+  const structural = manifestErrors(manifest);
 
   return [
-    ...manifestErrors(manifest).map((message) => mkError(message)),
+    ...structural.map((message) => mkError(message)),
     ...checkDeploymentTargets(manifest, declared, validTargets),
     ...checkOrphanOverlays(configDir, declared),
     ...checkProvidersRegistered(manifest),
     ...checkScopes(manifest, declared),
-    // Env→target resolution and identity act on the one deployment commands
-    // use; a manifest with several is reported instead (#211).
-    ...(tooMany
-      ? [mkError(tooMany)]
-      : [
-          ...checkEnvResolution(manifest, configDir, isVercel, validTargets),
-          ...checkIdentity(workingDir, configDir, isVercel),
-        ]),
+    // A structurally invalid manifest can't be resolved per deployment; its
+    // errors above are what to fix first.
+    ...(structural.length > 0
+      ? []
+      : checkEachDeployment(workingDir, configDir, manifest, validTargets)),
   ];
+}
+
+// Env→target resolution and project identity, which act on one deployment. A
+// multi-deployment root is checked through each deployment's view (#213), with
+// every finding prefixed by the deployment it belongs to.
+function checkEachDeployment(
+  workingDir: string,
+  configDir: string,
+  manifest: ResolvedManifest,
+  validTargets: Set<string>,
+): Finding[] {
+  if (manifest.deployments.length <= 1) {
+    const isVercel =
+      (manifest.deployments[0]?.provider ?? "vercel") === "vercel";
+    return [
+      ...checkEnvResolution(manifest, configDir, isVercel, validTargets),
+      ...checkIdentity(workingDir, configDir, isVercel),
+    ];
+  }
+  return manifest.deployments.flatMap((deployment) => {
+    const dir = path.join(configDir, deployment.name);
+    const isVercel = deployment.provider === "vercel";
+    return [
+      ...checkEnvResolution(parseManifest(dir), dir, isVercel, validTargets),
+      ...checkIdentity(workingDir, dir, isVercel),
+    ].map((f) =>
+      f.message.includes(`'${deployment.name}'`)
+        ? f
+        : { ...f, message: `deployment '${deployment.name}': ${f.message}` },
+    );
+  });
 }
 
 // Every declared environment must resolve to a target valid for the provider.
@@ -223,6 +249,8 @@ function checkIdentity(
   isVercel: boolean,
 ): Finding[] {
   if (!isVercel) return [];
+  const unpinned = missingSharedPin(configDir);
+  if (unpinned) return [mkError(unpinned)];
   if (projectPin(configDir)) {
     try {
       detectProject(workingDir, configDir);

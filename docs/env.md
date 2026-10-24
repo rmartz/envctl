@@ -47,9 +47,10 @@ result rather than throwing.
 > [deployment manifest](manifest.md) (`manifest.yml`) — declaring deployments,
 > services, and variable sources/scopes in one place — is being wired in
 > incrementally. The **env → target mapping is now sourced from the manifest**
-> (below); the active-environment _list_ still lives in `environments.yml`, and
-> `config push` / `env pull` still read per-environment vars from the flat
-> `deployment/{env}.yml` files.
+> (below). The active-environment _list_ still lives in `environments.yml`
+> (except in a [deployment view](manifest.md#deployment-views)). `config push`
+> pushes the manifest's literal `value` variables with the flat
+> `deployment/{env}.yml` files overriding them.
 
 ### Name → target mapping
 
@@ -98,8 +99,9 @@ deployments:
 
 [`detectProject`](../src/lib/project.ts) then resolves the pinned project for
 `config push`, `config pull`, `secrets` and `bootstrap`, reading the pin from
-the `--deployment-dir` they are given. `check` validates the pin in the default
-`deployment/` dir only. A pin is authoritative:
+the `--deployment-dir` (or `--deployment`) they are given. `check` validates
+the pin in the default `deployment/` dir, and each deployment's pin when that
+manifest declares several. A pin is authoritative:
 
 - If `.vercel/project.json` or `VERCEL_PROJECT_ID` names a **different
   project**, envctl refuses before any write.
@@ -111,6 +113,12 @@ Pinning makes the deployment dir the single source of truth for which project
 receives its secrets: running against the wrong dir fails rather than leaking
 one project's key into another. A manifest without a pin resolves exactly as
 before. Empty `VERCEL_*` vars count as unset.
+
+One root manifest can instead declare every project as a named deployment, and
+`--deployment <name>` selects one (see
+[deployment views](manifest.md#deployment-views)). There, a pin is
+**required** on each deployment, because they would otherwise all resolve to the
+same link.
 
 ## Defining environments
 

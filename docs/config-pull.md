@@ -62,6 +62,7 @@ name a different project. The CLI is invoked non-interactively (`--yes`,
 | `--out <path>`            | Output file, resolved against the project root (default `.env.local`).                 |
 | `--force`                 | Overwrite the target file if it already exists.                                        |
 | `--deployment-dir <path>` | Deployment config directory, resolved against the project root (default `deployment`). |
+| `--deployment <name>`     | Act on that directory's named deployment (its [view](manifest.md#deployment-views)).   |
 
 ## Deprecated alias: `env pull`
 

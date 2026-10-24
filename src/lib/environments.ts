@@ -3,6 +3,8 @@ import * as path from "path";
 
 import * as yaml from "js-yaml";
 
+import { deploymentView, viewEnvironments } from "./manifest/view";
+
 interface EnvironmentsConfig {
   active?: string[];
 }
@@ -15,13 +17,32 @@ function loadYamlFile(filePath: string): unknown {
   return content.trim() === "" ? null : yaml.load(content);
 }
 
+// A deployment view (#213) lists its deployment's environments; otherwise the
+// dir's environments.yml `active:` list.
 export function listActiveEnvs(deploymentDir: string): string[] {
+  const view = deploymentView(deploymentDir);
+  if (view) return [...viewEnvironments(view)];
   const envFile = path.join(deploymentDir, "environments.yml");
   const data = loadYamlFile(envFile) as EnvironmentsConfig | null;
   return data?.active ?? [];
 }
 
+// An environment's public vars from `{env}.yml`. A deployment view (#213)
+// layers its own `<name>/{env}.yml` over the root's shared one.
 export function parseDeploymentEnv(
+  deploymentDir: string,
+  envName: string,
+): Record<string, string> {
+  const view = deploymentView(deploymentDir);
+  return view
+    ? {
+        ...readEnvFile(view.root, envName),
+        ...readEnvFile(deploymentDir, envName),
+      }
+    : readEnvFile(deploymentDir, envName);
+}
+
+function readEnvFile(
   deploymentDir: string,
   envName: string,
 ): Record<string, string> {

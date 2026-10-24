@@ -400,6 +400,7 @@ starting.
 | `firebase` \| `sentry` \| …      | Positional. Scope the run to one provider (rotate) / pick the init target. Default: all present. |
 | `--env <name\|development\|all>` | Which deploy environment(s) to act on (default `all`).                                           |
 | `--deployment-dir <path>`        | Deployment config directory, resolved against the project root (default `deployment`).           |
+| `--deployment <name>`            | Act on that directory's named deployment (its [view](manifest.md#deployment-views)).             |
 | `--no-invalidate`                | Keep the old keys after the redeploy; print them for manual cleanup.                             |
 | `--refresh-previews`             | After rotation, redeploy active PR previews so their warm instances pick up the new credential.  |
 | `--private-key-file <path>`      | GitHub App private key PEM, resolved against the shell's cwd. Required for `github-app`.         |

@@ -2,6 +2,11 @@ import * as fs from "fs";
 import * as path from "path";
 
 import { err } from "../logger";
+import {
+  deploymentView,
+  multipleDeploymentsError,
+  parseManifest,
+} from "../manifest";
 import { envTargetResolver } from "../targets";
 
 // Environment-planning helpers shared by `config push` and `secrets` — the
@@ -9,8 +14,9 @@ import { envTargetResolver } from "../targets";
 // into the concrete set of named environments a command acts on.
 
 // Preflight shared by the deployment-config commands: a Vercel token must
-// resolve and the deployment directory (with its environments.yml) must exist.
-// Narrows `token` to a string for the caller.
+// resolve and the deployment directory (with its environments.yml) must exist,
+// unless it is a view of a root manifest's deployment (#213), which needs
+// neither. Narrows `token` to a string for the caller.
 export function assertDeploymentPrereqs(
   deploymentDir: string,
   token: string | undefined,
@@ -19,8 +25,13 @@ export function assertDeploymentPrereqs(
     err(
       "No Vercel token found. Set VERCEL_TOKEN or run 'vercel login' to authenticate.",
     );
+  if (deploymentView(deploymentDir)) return;
   if (!fs.existsSync(deploymentDir))
     err(`Deployment directory not found: ${deploymentDir}`);
+  // A multi-deployment root has no environments.yml of its own; say how to
+  // select a deployment rather than report the missing file.
+  const tooMany = multipleDeploymentsError(parseManifest(deploymentDir));
+  if (tooMany) err(tooMany);
   const envsFile = path.join(deploymentDir, "environments.yml");
   if (!fs.existsSync(envsFile)) err(`environments.yml not found: ${envsFile}`);
 }

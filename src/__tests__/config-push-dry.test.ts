@@ -124,7 +124,7 @@ describe("runPush — dry run", () => {
     expect(logs.some((l) => /production.*production/.test(l))).toBe(true);
   });
 
-  it("dry run warns when a per-env YAML file is missing", async () => {
+  it("dry run warns when an environment has no public variables", async () => {
     const warnings: string[] = [];
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation((m: string) =>
@@ -134,6 +134,8 @@ describe("runPush — dry run", () => {
     const deployDir = makeDeploymentDir(tmpDir, ["staging"], {});
     await runPush(opts(deployDir));
 
-    expect(warnings.some((w) => w.includes("No config file"))).toBe(true);
+    expect(
+      warnings.some((w) => w.includes("No public variables for 'staging'")),
+    ).toBe(true);
   });
 });

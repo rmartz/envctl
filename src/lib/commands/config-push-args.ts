@@ -1,6 +1,8 @@
-import * as path from "path";
-
 import { err } from "../logger";
+import {
+  DEPLOYMENT_FLAGS_USAGE,
+  resolveDeploymentDir,
+} from "./deployment-select";
 
 // Resolved options for `config push`. `deploymentDir` is absolute (resolved
 // against the project root) by the time it reaches `runPush`.
@@ -35,8 +37,7 @@ OPTIONS:
                            environments.yml, or 'development' for the implicit
                            development target (default: all active environments
                            plus development)
-  --deployment-dir <path>  Path to the deployment config directory, resolved
-                           against the project root (default: deployment)
+${DEPLOYMENT_FLAGS_USAGE}
   --dry-run                Print what would change without making any API calls
   -h, --help               Show this help
 
@@ -54,6 +55,7 @@ ENVIRONMENT MAPPING:
 export function parsePushArgs(args: string[], workingDir: string): PushOptions {
   let targetEnv = "all";
   let deploymentDir = "deployment";
+  let deployment: string | undefined;
   let dryRun = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -65,6 +67,9 @@ export function parsePushArgs(args: string[], workingDir: string): PushOptions {
     } else if (arg === "--deployment-dir") {
       deploymentDir = args[++i] ?? err("--deployment-dir requires a path");
       if (!deploymentDir) err("--deployment-dir requires a path");
+    } else if (arg === "--deployment") {
+      deployment = args[++i] ?? err("--deployment requires a name");
+      if (!deployment) err("--deployment requires a name");
     } else if (arg === "--dry-run") {
       dryRun = true;
     } else if (arg === "-h" || arg === "--help") {
@@ -78,7 +83,7 @@ export function parsePushArgs(args: string[], workingDir: string): PushOptions {
   return {
     targetEnv,
     workingDir,
-    deploymentDir: path.resolve(workingDir, deploymentDir),
+    deploymentDir: resolveDeploymentDir(workingDir, deploymentDir, deployment),
     dryRun,
   };
 }

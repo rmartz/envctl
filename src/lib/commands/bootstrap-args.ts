@@ -1,6 +1,10 @@
 import * as path from "path";
 
 import { err } from "../logger";
+import {
+  DEPLOYMENT_FLAGS_USAGE,
+  resolveDeploymentDir,
+} from "./deployment-select";
 
 // Resolved options for `envctl bootstrap`. `deploymentDir` and `out` are
 // absolute (resolved against the project root) by the time they reach the
@@ -36,8 +40,7 @@ and a Sentry token for Sentry. Run 'envctl auth status' to check.
 OPTIONS:
   --env <name|all>         Environment(s) for the public-config and secrets
                            phases (default: all)
-  --deployment-dir <path>  Path to the deployment config directory, resolved
-                           against the project root (default: deployment)
+${DEPLOYMENT_FLAGS_USAGE}
   --out <path>             Dotenv file the pull phase writes, resolved against
                            the project root (default: .env.local)
   --no-pull                Skip the local dotenv pull phase
@@ -52,6 +55,7 @@ export function parseBootstrapArgs(
 ): BootstrapOptions {
   let targetEnv = "all";
   let deploymentDir = "deployment";
+  let deployment: string | undefined;
   let dryRun = false;
   let pull = true;
   let out = ".env.local";
@@ -65,6 +69,9 @@ export function parseBootstrapArgs(
     } else if (arg === "--deployment-dir") {
       deploymentDir = args[++i] ?? err("--deployment-dir requires a path");
       if (!deploymentDir) err("--deployment-dir requires a path");
+    } else if (arg === "--deployment") {
+      deployment = args[++i] ?? err("--deployment requires a name");
+      if (!deployment) err("--deployment requires a name");
     } else if (arg === "--out") {
       out = args[++i] ?? err("--out requires a path");
       if (!out) err("--out requires a path");
@@ -83,7 +90,7 @@ export function parseBootstrapArgs(
   return {
     targetEnv,
     workingDir,
-    deploymentDir: path.resolve(workingDir, deploymentDir),
+    deploymentDir: resolveDeploymentDir(workingDir, deploymentDir, deployment),
     dryRun,
     pull,
     out: path.resolve(workingDir, out),

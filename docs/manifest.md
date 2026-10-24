@@ -136,14 +136,55 @@ function that returns the structural errors `check` reports:
 - a deployment referencing an undefined service;
 - a deployment scoped to an undeclared environment.
 
-**Commands still act on one deployment per manifest.**
+**Commands act on one deployment.**
 [`soleDeployment`](../src/lib/manifest/deployments.ts) returns it, and it is
 what `config push`, `config pull`, `secrets`, `bootstrap`, `env add` and
-env→target resolution use. It **refuses** a manifest declaring several deployments,
-naming them, instead of silently acting on the first. A silent pick could send
-one project's secrets to another. `check` reports the same refusal as an error.
-Selecting a deployment from the CLI is the next step of #210. Until then, keep
-one deployment per `--deployment-dir`.
+env→target resolution use. Run against the root of a manifest that declares
+several deployments, it **refuses** and names them, rather than silently acting
+on the first, which could send one project's secrets to another. Select one with
+`--deployment <name>`, which resolves to its view.
+
+### Deployment views
+
+`<deployment-dir>/<name>/` with no `manifest.yml` or `environments.yml` of its
+own is a **view** of the parent manifest's deployment `<name>` (#213, resolved
+by [`view.ts`](../src/lib/manifest/view.ts)). The directory doesn't have to
+exist. `parseManifest`, `listActiveEnvs` and `parseDeploymentEnv` all resolve
+it, so every command works on it unchanged:
+
+| In the view  | Comes from                                                                     |
+| ------------ | ------------------------------------------------------------------------------ |
+| environments | the deployment's `environments`, else the root's                               |
+| deployments  | just this one, with its project pin                                            |
+| services     | only those the deployment lists (all of them if it lists none)                 |
+| variables    | top-level plus the deployment's own, the deployment's winning on a name clash  |
+| overlays     | `<deployment-dir>/{env}.yml`, then `<deployment-dir>/<name>/{env}.yml` over it |
+
+`--deployment <name>`, on `config push`, `config pull`, `secrets` and
+`bootstrap`, is sugar for `--deployment-dir <deployment-dir>/<name>`. An
+unknown name errors, listing the declared ones. A repo can therefore fold
+per-project directories into one root manifest and keep its existing
+`--deployment-dir deployment/<name>` command lines.
+
+A view's guarantees:
+
+- **Invalid roots are refused.** If the root has any `manifestErrors`, the
+  view isn't resolved, since a dangling reference would otherwise silently drop
+  a service from it.
+- **Shared roots need pins.** When the root declares more than one deployment,
+  each must pin its project (`projectId`, `teamId`). Otherwise they would all
+  fall back to the same `.vercel` link or `VERCEL_PROJECT_ID`.
+- **Services stay where they're listed.** A deployment that lists `services`
+  gets only those. `secrets init` doesn't auto-detect an unlisted Firebase or
+  Sentry from public vars in a shared overlay, and naming one explicitly
+  (`secrets init sentry`) is refused.
+
+`check` validates each deployment's env→target resolution and project identity
+through its view, prefixing findings with the deployment name.
+
+**Not yet:** acting on one service across several deployments, and minting a
+top-level generated variable once for all of them. Today each deployment's run
+mints its own value. Both are later steps of #210.
 
 [`effectiveValue(manifest, env, name)`](../src/lib/manifest/resolve.ts) resolves
 a variable's literal value for an environment: a per-env overlay override wins

@@ -127,7 +127,9 @@ operator needs:
 
 Shared flags: **`--env <name|development|all>`** selects the deploy
 environment(s) (default `all` for push/secrets); **`--deployment-dir <path>`**
-overrides the config directory (default `deployment`); **`--no-invalidate`**
+overrides the config directory (default `deployment`); **`--deployment <name>`**
+acts on one named deployment of a multi-deployment manifest (its
+[view](manifest.md#deployment-views)); **`--no-invalidate`**
 keeps old secrets after a rotation; **`--refresh-previews`** redeploys warm PR
 previews after a rotation. Every command also takes the global
 `-C/--working-dir`.

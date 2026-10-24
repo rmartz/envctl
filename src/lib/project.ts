@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 import { err } from "./logger";
-import { parseManifest, soleDeployment } from "./manifest";
+import { deploymentView, parseManifest, soleDeployment } from "./manifest";
 
 export interface ProjectConfig {
   projectId: string;
@@ -27,6 +27,17 @@ export function projectPin(deploymentDir: string): ProjectConfig | undefined {
   return deployment.teamId
     ? { projectId: deployment.projectId, teamId: deployment.teamId }
     : { projectId: deployment.projectId };
+}
+
+// Why a deployment view must be pinned but isn't, or undefined (#213). With
+// several deployments in one manifest, an unpinned one would fall back to the
+// shared `.vercel` link or VERCEL_* vars — the same project as its siblings —
+// so it is refused rather than guessed.
+export function missingSharedPin(deploymentDir: string): string | undefined {
+  const view = deploymentView(deploymentDir);
+  if (!view || view.siblings === 0 || projectPin(deploymentDir))
+    return undefined;
+  return `Deployment '${view.deployment.name}' must pin its Vercel project (projectId, teamId) in ${view.root}/manifest.yml: the manifest declares other deployments, so the shared .vercel link or VERCEL_PROJECT_ID can't tell them apart.`;
 }
 
 // Why a pin can't be used: the first source naming a different project or
@@ -83,6 +94,8 @@ export function detectProject(
 ): ProjectConfig {
   const pin = deploymentDir ? projectPin(deploymentDir) : undefined;
   if (pin) return resolvePinned(pin, workingDir);
+  const unpinned = deploymentDir ? missingSharedPin(deploymentDir) : undefined;
+  if (unpinned) return err(unpinned);
 
   // An empty var counts as unset, so it can't blank out the link's identity.
   const projectId = process.env.VERCEL_PROJECT_ID || undefined;

@@ -16,5 +16,10 @@ export {
   multipleDeploymentsError,
   soleDeployment,
 } from "./deployments";
-export { effectiveValue } from "./resolve";
+export { effectiveValue, publicVars } from "./resolve";
+export {
+  deploymentView,
+  isSafeDeploymentName,
+  type DeploymentView,
+} from "./view";
 export { setManifestEnvironments, setManifestTarget } from "./write";

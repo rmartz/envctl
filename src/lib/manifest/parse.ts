@@ -17,7 +17,9 @@ import {
   parseVariableGroups,
   parseVariables,
 } from "./parse-fields";
+import { projectView } from "./deployments";
 import type { ResolvedManifest } from "./types";
+import { deploymentView, viewEnvironments } from "./view";
 
 export const MANIFEST_FILENAME = "manifest.yml";
 
@@ -48,15 +50,23 @@ function readOverlays(
 
 /**
  * Parse a project's deployment configuration into the resolved model. Reads
- * `deployment/manifest.yml` when present; otherwise falls back to the legacy
- * flat format (`environments.yml` + per-env value files) mapped onto the same
- * model, so existing projects parse unchanged.
+ * `deployment/manifest.yml` when present. A dir with no config of its own that
+ * names a deployment of its parent's manifest resolves as that deployment's
+ * view (#213). Otherwise it falls back to the legacy flat format
+ * (`environments.yml` + per-env value files) mapped onto the same model, so
+ * existing projects parse unchanged.
  */
 export function parseManifest(deploymentDir: string): ResolvedManifest {
   const file = manifestFilePath(deploymentDir);
-  return fs.existsSync(file)
-    ? parseManifestFile(deploymentDir, file)
-    : parseLegacy(deploymentDir);
+  if (fs.existsSync(file)) return parseManifestFile(deploymentDir, file);
+  const view = deploymentView(deploymentDir);
+  if (view)
+    return projectView(
+      parseManifest(view.root),
+      view,
+      readOverlays(deploymentDir, viewEnvironments(view)),
+    );
+  return parseLegacy(deploymentDir);
 }
 
 interface RawManifest {

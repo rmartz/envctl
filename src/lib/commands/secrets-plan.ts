@@ -45,19 +45,29 @@ export function detectConfiguredServices(
   const keys = scanEnvs.flatMap((envName) =>
     Object.keys(parseDeploymentEnv(deploymentDir, envName)),
   );
+  const manifest = parseManifest(deploymentDir);
+  const declares = (provider: string): boolean =>
+    manifest.services.some((s) => s.provider === provider);
+  // A deployment that lists its services gets only those (#213): public vars
+  // in a shared overlay must not pull in a service it didn't list.
+  const listsServices = manifest.deployments[0]?.services !== undefined;
+  const allowed = (provider: string): boolean =>
+    !listsServices || declares(provider);
 
   return {
-    firebase: keys.some((k) =>
-      [
-        "FIREBASE_PROJECT_ID",
-        "FIREBASE_SA_EMAIL",
-        "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-      ].includes(k),
-    ),
-    sentry: keys.some((k) => ["SENTRY_ORG", "SENTRY_PROJECT"].includes(k)),
-    githubApp: parseManifest(deploymentDir).services.some(
-      (s) => s.provider === GITHUB_APP_PROVIDER,
-    ),
+    firebase:
+      allowed("firebase") &&
+      keys.some((k) =>
+        [
+          "FIREBASE_PROJECT_ID",
+          "FIREBASE_SA_EMAIL",
+          "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+        ].includes(k),
+      ),
+    sentry:
+      allowed("sentry") &&
+      keys.some((k) => ["SENTRY_ORG", "SENTRY_PROJECT"].includes(k)),
+    githubApp: declares(GITHUB_APP_PROVIDER),
   };
 }
 
@@ -182,6 +192,23 @@ export function validateInitConfig(
         .map((m) => `  · ${m}`)
         .join("\n")}`,
     );
+}
+
+// Refuses a named provider that the deployment doesn't list among its services
+// (#213), so `secrets init sentry --deployment gate` can't put a Sentry token
+// into a project whose manifest entry left Sentry out. A deployment with no
+// `services` list gets every service, as before.
+export function assertServiceListed(
+  deploymentDir: string,
+  provider: string,
+): void {
+  const manifest = parseManifest(deploymentDir);
+  const deployment = manifest.deployments[0];
+  if (deployment?.services === undefined) return;
+  if (manifest.services.some((s) => s.provider === provider)) return;
+  err(
+    `Deployment '${deployment.name}' doesn't list a ${provider} service (services: ${deployment.services.join(", ") || "none"}). Add it to the deployment's services to manage it there.`,
+  );
 }
 
 export { sentrySourceEnv };

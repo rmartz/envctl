@@ -69,6 +69,7 @@ deployment to redeploy.
 | ------------------------- | --------------------------------------------------------------------------------------------------- |
 | `--env <name\|all>`       | Environment(s) for the config and secrets phases (default `all`). The pull is always `development`. |
 | `--deployment-dir <path>` | Deployment config directory, resolved against the project root (default `deployment`).              |
+| `--deployment <name>`     | Act on that directory's named deployment (its [view](manifest.md#deployment-views)).                |
 | `--out <path>`            | Dotenv file the pull phase writes, resolved against the project root (default `.env.local`).        |
 | `--no-pull`               | Skip the local dotenv phase.                                                                        |
 | `--dry-run`               | Print the plan for every phase without making any changes or Vercel API calls.                      |

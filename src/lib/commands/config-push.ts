@@ -1,10 +1,8 @@
-import * as fs from "fs";
-import * as path from "path";
-
 import { resolveVercelToken } from "../auth";
 import type { CommandContext } from "../cli/registry";
-import { listActiveEnvs, parseDeploymentEnv } from "../environments";
+import { listActiveEnvs } from "../environments";
 import { err, log, warn } from "../logger";
+import { parseManifest, publicVars } from "../manifest";
 import { assertPosthogProjectIsolation } from "../posthog";
 import type { DeploymentProvider } from "../providers/deployment";
 import { resolveProjectDeployment } from "../providers/registry";
@@ -32,6 +30,14 @@ function resolvePlan(
   return { envList, syncDev };
 }
 
+// An environment's public variables: the manifest's literal values for it
+// (top-level, scoped groups and, in a deployment view, the deployment's own),
+// overridden by its `{env}.yml` overlay (#213). A legacy config has no
+// manifest variables, so this is just its overlay file, as before.
+function envVars(opts: PushOptions, envName: string): Record<string, string> {
+  return publicVars(parseManifest(opts.deploymentDir), envName);
+}
+
 function dryRunPlan(
   opts: PushOptions,
   envList: string[],
@@ -41,18 +47,17 @@ function dryRunPlan(
 ): void {
   log("Dry run — no changes will be made");
   for (const envName of envList) {
-    const envFile = path.join(opts.deploymentDir, `${envName}.yml`);
-    if (!fs.existsSync(envFile)) {
-      warn(`No config file for '${envName}': ${envFile}`);
+    const vars = envVars(opts, envName);
+    if (Object.keys(vars).length === 0) {
+      warn(`No public variables for '${envName}'`);
       continue;
     }
     log(`Would push ${envName} → ${resolveTarget(envName)}:`);
-    const vars = parseDeploymentEnv(opts.deploymentDir, envName);
     for (const key of Object.keys(vars)) log(`  Would push: ${key}`);
   }
   if (syncDev && devSource) {
     log(`Would push development (from ${devSource}) → development:`);
-    const vars = parseDeploymentEnv(opts.deploymentDir, devSource);
+    const vars = envVars(opts, devSource);
     for (const key of Object.keys(vars)) log(`  Would push: ${key}`);
   }
 }
@@ -93,17 +98,12 @@ async function pushEnv(
   envName: string,
   target: string,
 ): Promise<{ created: number; updated: number }> {
-  const envFile = path.join(opts.deploymentDir, `${envName}.yml`);
-  if (!fs.existsSync(envFile)) {
-    warn(`No config file for '${envName}': ${envFile} — skipping`);
+  const vars = envVars(opts, envName);
+  if (Object.keys(vars).length === 0) {
+    warn(`No public variables for '${envName}' — skipping`);
     return { created: 0, updated: 0 };
   }
   log(`Pushing ${envName} → ${target}...`);
-  const vars = parseDeploymentEnv(opts.deploymentDir, envName);
-  if (Object.keys(vars).length === 0) {
-    warn(`No variables found in ${envFile} — skipping`);
-    return { created: 0, updated: 0 };
-  }
   return pushVars(deployment, envName, target, vars);
 }
 
@@ -113,16 +113,11 @@ async function pushDev(
   opts: PushOptions,
   devSource: string,
 ): Promise<{ created: number; updated: number }> {
-  const devEnvFile = path.join(opts.deploymentDir, `${devSource}.yml`);
-  if (!fs.existsSync(devEnvFile)) {
-    warn(
-      `No config file for development source '${devSource}': ${devEnvFile} — skipping development push`,
-    );
-    return { created: 0, updated: 0 };
-  }
-  const vars = parseDeploymentEnv(opts.deploymentDir, devSource);
+  const vars = envVars(opts, devSource);
   if (Object.keys(vars).length === 0) {
-    warn(`No variables found in ${devEnvFile} — skipping development push`);
+    warn(
+      `No public variables for development source '${devSource}' — skipping development push`,
+    );
     return { created: 0, updated: 0 };
   }
   log(`Pushing development (from ${devSource}) → development...`);
