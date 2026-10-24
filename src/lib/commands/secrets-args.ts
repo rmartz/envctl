@@ -1,6 +1,10 @@
 import * as path from "path";
 
 import { err } from "../logger";
+import {
+  DEPLOYMENT_FLAGS_USAGE,
+  resolveDeploymentDir,
+} from "./deployment-select";
 
 // Resolved options for `secrets rotate` / `secrets init`. `deploymentDir` is
 // absolute (resolved against the project root) by the time it reaches the
@@ -53,8 +57,7 @@ ARGUMENTS:
 OPTIONS:
   --env <name>             Environment to rotate (a name from environments.yml,
                            'development', or 'all') (default: all)
-  --deployment-dir <path>  Path to the deployment config directory, resolved
-                           against the project root (default: deployment)
+${DEPLOYMENT_FLAGS_USAGE}
   --no-invalidate          Keep the old keys after the redeploy
   --refresh-previews       Redeploy active PR previews after rotation
   --private-key-file <path>
@@ -76,8 +79,7 @@ ARGUMENTS:
 
 OPTIONS:
   --env <name>             Environment to initialize (default: all)
-  --deployment-dir <path>  Path to the deployment config directory, resolved
-                           against the project root (default: deployment)
+${DEPLOYMENT_FLAGS_USAGE}
   --no-invalidate          Keep the old keys after the redeploy
   --refresh-previews       Redeploy active PR previews after initialization
   --private-key-file <path>
@@ -96,6 +98,7 @@ export function parseSecretsArgs(
 ): SecretsOptions {
   let targetEnv = "all";
   let deploymentDir = "deployment";
+  let deployment: string | undefined;
   let invalidateKeys = true;
   let refreshPreviews = false;
   let init: SecretsOptions["init"] = isInit ? "auto" : undefined;
@@ -112,6 +115,9 @@ export function parseSecretsArgs(
     } else if (arg === "--deployment-dir") {
       deploymentDir = args[++i] ?? err("--deployment-dir requires a path");
       if (!deploymentDir) err("--deployment-dir requires a path");
+    } else if (arg === "--deployment") {
+      deployment = args[++i] ?? err("--deployment requires a name");
+      if (!deployment) err("--deployment requires a name");
     } else if (arg === "--private-key-file") {
       githubAppPrivateKeyFile =
         args[++i] ?? err("--private-key-file requires a path");
@@ -144,7 +150,7 @@ export function parseSecretsArgs(
   return {
     targetEnv,
     workingDir,
-    deploymentDir: path.resolve(workingDir, deploymentDir),
+    deploymentDir: resolveDeploymentDir(workingDir, deploymentDir, deployment),
     invalidateKeys,
     refreshPreviews,
     init,

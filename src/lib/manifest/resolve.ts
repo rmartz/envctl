@@ -34,3 +34,28 @@ export function effectiveValue(
   if (overlay !== undefined) return overlay;
   return decl?.source.kind === "value" ? decl.source.value : undefined;
 }
+
+/**
+ * Every public variable an environment pushes: each literal `value` declared
+ * for it (top-level, a group scoped to it, or — in a deployment view — the
+ * deployment's own) plus its overlay, resolved through {@link effectiveValue}
+ * so an overlay override wins and a secret source never leaks a value.
+ */
+export function publicVars(
+  manifest: ResolvedManifest,
+  env: string,
+): Record<string, string> {
+  const names = new Set([
+    ...manifest.variables.map((v) => v.name),
+    ...manifest.variableGroups
+      .filter((g) => !g.environments || g.environments.includes(env))
+      .flatMap((g) => g.variables.map((v) => v.name)),
+    ...Object.keys(manifest.overlays[env] ?? {}),
+  ]);
+  const out: Record<string, string> = {};
+  for (const name of names) {
+    const value = effectiveValue(manifest, env, name);
+    if (value !== undefined) out[name] = value;
+  }
+  return out;
+}

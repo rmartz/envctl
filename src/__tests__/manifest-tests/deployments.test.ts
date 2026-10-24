@@ -165,7 +165,7 @@ describe("soleDeployment", () => {
   it("refuses several deployments, naming them", () => {
     makeManifest(TWO_DEPLOYMENTS);
     expect(() => soleDeployment(parseManifest(deployDir))).toThrow(
-      /declares 2 deployments \(actor, gate\)/,
+      /declares 2 deployments \(actor, gate\); select one with --deployment/,
     );
   });
 
@@ -188,11 +188,12 @@ describe("soleDeployment", () => {
 });
 
 describe("check with named deployments", () => {
-  it("reports a multi-deployment manifest as an error", () => {
+  it("requires each deployment of a multi-deployment root to pin its project", () => {
     makeManifest(TWO_DEPLOYMENTS);
-    expect(checkStatic(workingDir).map((f) => f.message)).toContainEqual(
-      expect.stringMatching(/declares 2 deployments/),
-    );
+    expect(checkStatic(workingDir).map((f) => f.message)).toEqual([
+      expect.stringMatching(/Deployment 'actor' must pin its Vercel project/),
+      expect.stringMatching(/Deployment 'gate' must pin its Vercel project/),
+    ]);
   });
 
   it("reports manifestErrors as errors", () => {

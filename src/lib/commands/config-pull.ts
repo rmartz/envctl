@@ -3,9 +3,10 @@ import * as path from "path";
 
 import type { CommandContext } from "../cli/registry";
 import { err, log, warn } from "../logger";
-import { detectProject, projectPin } from "../project";
+import { detectProject, missingSharedPin, projectPin } from "../project";
 import { commandExists, run, runStatus } from "../subprocess";
 import { resolveEnvTarget } from "../targets";
+import { resolveDeploymentDir } from "./deployment-select";
 
 interface PullOptions {
   // Deployment environment name (mapped to a Vercel target via the manifest).
@@ -39,6 +40,9 @@ OPTIONS:
                  project root (default: deployment). When its manifest pins a
                  Vercel project, that project is pulled instead of the
                  .vercel/project.json link.
+  --deployment <name>
+                 Pull the named deployment of that directory's manifest
+                 (its view, <deployment-dir>/<name>)
   -h, --help     Show this help`;
 
 // `args` has already had the global -C/--working-dir flag stripped by the router.
@@ -47,6 +51,7 @@ export function parsePullArgs(args: string[], workingDir: string): PullOptions {
   let out = ".env.local";
   let force = false;
   let deploymentDir = "deployment";
+  let deployment: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -59,6 +64,9 @@ export function parsePullArgs(args: string[], workingDir: string): PullOptions {
     } else if (arg === "--deployment-dir") {
       deploymentDir = args[++i] ?? err("--deployment-dir requires a path");
       if (!deploymentDir) err("--deployment-dir requires a path");
+    } else if (arg === "--deployment") {
+      deployment = args[++i] ?? err("--deployment requires a name");
+      if (!deployment) err("--deployment requires a name");
     } else if (arg === "-h" || arg === "--help") {
       console.log(PULL_USAGE);
       process.exit(0);
@@ -71,7 +79,7 @@ export function parsePullArgs(args: string[], workingDir: string): PullOptions {
     env,
     out: path.resolve(workingDir, out),
     force,
-    deploymentDir: path.resolve(workingDir, deploymentDir),
+    deploymentDir: resolveDeploymentDir(workingDir, deploymentDir, deployment),
   };
 }
 
@@ -100,6 +108,8 @@ function vercelCliEnv(
   deploymentDir: string,
 ): NodeJS.ProcessEnv {
   const base = { ...process.env, VERCEL_NON_INTERACTIVE: "1" };
+  const unpinned = missingSharedPin(deploymentDir);
+  if (unpinned) return err(unpinned);
   if (projectPin(deploymentDir)) {
     const project = detectProject(workingDir, deploymentDir);
     if (!project.teamId)
