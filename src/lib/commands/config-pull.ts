@@ -3,9 +3,9 @@ import * as path from "path";
 
 import type { CommandContext } from "../cli/registry";
 import { err, log, warn } from "../logger";
+import { detectProject, projectPin } from "../project";
 import { commandExists, run, runStatus } from "../subprocess";
 import { resolveEnvTarget } from "../targets";
-import { deploymentDir } from "./deployment-config";
 
 interface PullOptions {
   // Deployment environment name (mapped to a Vercel target via the manifest).
@@ -14,6 +14,8 @@ interface PullOptions {
   out: string;
   // Overwrite an existing target file. Without it, an existing file is refused.
   force: boolean;
+  // Absolute path to the deployment config directory.
+  deploymentDir: string;
 }
 
 export const PULL_USAGE = `Usage: envctl config pull [OPTIONS]
@@ -32,6 +34,11 @@ OPTIONS:
   --out <path>   Output file, resolved against the project root
                  (default: .env.local)
   --force        Overwrite the target file if it already exists
+  --deployment-dir <path>
+                 Path to the deployment config directory, resolved against the
+                 project root (default: deployment). When its manifest pins a
+                 Vercel project, that project is pulled instead of the
+                 .vercel/project.json link.
   -h, --help     Show this help`;
 
 // `args` has already had the global -C/--working-dir flag stripped by the router.
@@ -39,6 +46,7 @@ export function parsePullArgs(args: string[], workingDir: string): PullOptions {
   let env = "development";
   let out = ".env.local";
   let force = false;
+  let deploymentDir = "deployment";
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -48,6 +56,9 @@ export function parsePullArgs(args: string[], workingDir: string): PullOptions {
       out = args[++i] ?? err("--out requires a path");
     } else if (arg === "--force") {
       force = true;
+    } else if (arg === "--deployment-dir") {
+      deploymentDir = args[++i] ?? err("--deployment-dir requires a path");
+      if (!deploymentDir) err("--deployment-dir requires a path");
     } else if (arg === "-h" || arg === "--help") {
       console.log(PULL_USAGE);
       process.exit(0);
@@ -56,7 +67,12 @@ export function parsePullArgs(args: string[], workingDir: string): PullOptions {
     }
   }
 
-  return { env, out: path.resolve(workingDir, out), force };
+  return {
+    env,
+    out: path.resolve(workingDir, out),
+    force,
+    deploymentDir: path.resolve(workingDir, deploymentDir),
+  };
 }
 
 // Warns when the pulled file is not gitignored, since it now holds live
@@ -75,6 +91,34 @@ function warnIfNotGitIgnored(target: string, cwd: string): void {
     );
 }
 
+// The Vercel CLI's environment. A manifest pin (#208) is handed to it as
+// VERCEL_ORG_ID/VERCEL_PROJECT_ID, which override any `.vercel` link; the pin
+// is first cross-checked against that link and the VERCEL_* vars. Without a
+// pin the directory must be linked, as before.
+function vercelCliEnv(
+  workingDir: string,
+  deploymentDir: string,
+): NodeJS.ProcessEnv {
+  const base = { ...process.env, VERCEL_NON_INTERACTIVE: "1" };
+  if (projectPin(deploymentDir)) {
+    const project = detectProject(workingDir, deploymentDir);
+    if (!project.teamId)
+      return err(
+        "The pinned Vercel project has no team: set teamId next to projectId in the manifest (vercel env pull needs both).",
+      );
+    return {
+      ...base,
+      VERCEL_ORG_ID: project.teamId,
+      VERCEL_PROJECT_ID: project.projectId,
+    };
+  }
+  if (!fs.existsSync(path.join(workingDir, ".vercel", "project.json")))
+    return err(
+      "Not a linked Vercel project (no .vercel/project.json). Run `vercel link` first, or pin projectId in the manifest.",
+    );
+  return base;
+}
+
 // `envctl config pull` — pull an environment's variables into a local dotenv
 // file, the inverse of `config push`. Wraps the Vercel CLI (it owns decryption
 // + escaping); preflights that the CLI is present and the directory is a linked
@@ -88,11 +132,7 @@ export function runConfigPull(ctx: CommandContext, args: string[]): void {
       "The Vercel CLI is required for 'config pull'. Install it (e.g. `npm i -g vercel`) and run `vercel login`.",
     );
   }
-  if (!fs.existsSync(path.join(ctx.workingDir, ".vercel", "project.json"))) {
-    err(
-      "Not a linked Vercel project (no .vercel/project.json). Run `vercel link` first.",
-    );
-  }
+  const cliEnv = vercelCliEnv(ctx.workingDir, opts.deploymentDir);
   // Use lstatSync (not existsSync) to avoid following symlinks: a dangling
   // symlink returns false from existsSync but lstatSync detects it.
   let targetStat: fs.Stats | undefined;
@@ -112,7 +152,7 @@ export function runConfigPull(ctx: CommandContext, args: string[]): void {
     }
   }
 
-  const target = resolveEnvTarget(deploymentDir(ctx.workingDir), opts.env);
+  const target = resolveEnvTarget(opts.deploymentDir, opts.env);
   // Pre-create the target at 0600 before the CLI writes secrets into it,
   // closing the window where the CLI creates the file with a permissive umask.
   // chmodSync handles existing files, since writeFileSync's mode applies only
@@ -126,7 +166,7 @@ export function runConfigPull(ctx: CommandContext, args: string[]): void {
       ["env", "pull", opts.out, `--environment=${target}`, "--yes"],
       {
         cwd: ctx.workingDir,
-        env: { ...process.env, VERCEL_NON_INTERACTIVE: "1" },
+        env: cliEnv,
       },
     );
   } catch (error) {

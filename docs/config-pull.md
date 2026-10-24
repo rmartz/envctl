@@ -45,17 +45,23 @@ The pulled file carries live secrets, so `config pull`:
 
 ## Preflight
 
-Requires the **Vercel CLI** on `PATH` and a linked project
-(`.vercel/project.json`, from `vercel link`). The CLI is invoked
-non-interactively (`--yes`, `VERCEL_NON_INTERACTIVE=1`) so it never prompts.
+Requires the **Vercel CLI** on `PATH` and a project to pull from. That is
+either a [manifest pin](env.md#pinning-the-vercel-project) in the deployment
+dir, or a linked project (`.vercel/project.json`, from `vercel link`). A pin is
+handed to the CLI as `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`, which override any
+link. A pin therefore needs a team, from `teamId` or a matching link or env
+var. It is refused, before the CLI runs, if the link or the `VERCEL_*` vars
+name a different project. The CLI is invoked non-interactively (`--yes`,
+`VERCEL_NON_INTERACTIVE=1`) so it never prompts.
 
 ## Options
 
-| Flag           | Effect                                                                    |
-| -------------- | ------------------------------------------------------------------------- |
-| `--env <name>` | Environment to pull, mapped to its Vercel target (default `development`). |
-| `--out <path>` | Output file, resolved against the project root (default `.env.local`).    |
-| `--force`      | Overwrite the target file if it already exists.                           |
+| Flag                      | Effect                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `--env <name>`            | Environment to pull, mapped to its Vercel target (default `development`).              |
+| `--out <path>`            | Output file, resolved against the project root (default `.env.local`).                 |
+| `--force`                 | Overwrite the target file if it already exists.                                        |
+| `--deployment-dir <path>` | Deployment config directory, resolved against the project root (default `deployment`). |
 
 ## Deprecated alias: `env pull`
 

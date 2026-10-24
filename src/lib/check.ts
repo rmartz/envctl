@@ -6,11 +6,13 @@ import {
   environmentsFile,
   VALID_TARGETS,
 } from "./commands/deployment-config";
+import { FatalError } from "./logger";
 import {
   manifestFilePath,
   parseManifest,
   type ResolvedManifest,
 } from "./manifest";
+import { detectProject, projectPin } from "./project";
 import { KNOWN_DEPLOYMENT_PROVIDERS } from "./providers/registry";
 import { serviceProviders } from "./providers/service";
 import { envTargetResolver } from "./targets";
@@ -80,7 +82,7 @@ export function checkStatic(workingDir: string): Finding[] {
     ...checkOrphanOverlays(configDir, declared),
     ...checkProvidersRegistered(manifest),
     ...checkScopes(manifest, declared),
-    ...checkIdentity(workingDir, isVercel),
+    ...checkIdentity(workingDir, configDir, isVercel),
   ];
 }
 
@@ -202,9 +204,24 @@ function checkScopes(
 
 // The Vercel deployment provider's identity should resolve. Missing identity is
 // a warning, not an error: the manifest is still valid — identity is only
-// needed once you push or rotate.
-function checkIdentity(workingDir: string, isVercel: boolean): Finding[] {
+// needed once you push or rotate. A manifest pin always resolves, but one that
+// disagrees with the link or the VERCEL_* env vars is an error (#208): every
+// write command would refuse it.
+function checkIdentity(
+  workingDir: string,
+  configDir: string,
+  isVercel: boolean,
+): Finding[] {
   if (!isVercel) return [];
+  if (projectPin(configDir)) {
+    try {
+      detectProject(workingDir, configDir);
+      return [];
+    } catch (e) {
+      if (e instanceof FatalError) return [mkError(e.message)];
+      throw e;
+    }
+  }
   const linked =
     fs.existsSync(path.join(workingDir, ".vercel", "project.json")) ||
     Boolean(process.env.VERCEL_PROJECT_ID);

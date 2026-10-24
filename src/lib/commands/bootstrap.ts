@@ -34,7 +34,7 @@ function bootstrapPreflight(
   opts: BootstrapOptions,
   configured: Configured,
 ): void {
-  detectProject(opts.workingDir); // throws early if the project can't be resolved
+  detectProject(opts.workingDir, opts.deploymentDir); // throws early if the project can't be resolved
   if (opts.dryRun) return;
   if (opts.pull && !commandExists("vercel"))
     err(
@@ -105,7 +105,7 @@ async function bootstrapSecrets(
     return;
   }
 
-  const project = detectProject(opts.workingDir);
+  const project = detectProject(opts.workingDir, opts.deploymentDir);
   const client = new VercelClient(token, project.projectId, project.teamId);
   const present = await detectExistingSecrets(
     client,
@@ -145,7 +145,7 @@ async function bootstrapVerify(
     log("  Would trigger redeployments to verify pushed configuration.");
     return;
   }
-  const project = detectProject(opts.workingDir);
+  const project = detectProject(opts.workingDir, opts.deploymentDir);
   const client = new VercelClient(token, project.projectId, project.teamId);
   await triggerAndWaitRedeployments(resolvedTarget, client);
 }

@@ -25,8 +25,10 @@ builds on. **`secrets` now reads the manifest** to resolve the Firebase
 # deployment/manifest.yml
 environments: [production, staging, qa]
 
-deployments: # provider-typed sinks; identity is still discovered per-provider
+deployments: # provider-typed sinks
   - provider: vercel
+    projectId: prj_abc123 # optional pin; otherwise the link / VERCEL_* vars
+    teamId: team_xyz789 # optional
     targets: { production: production, staging: preview, qa: preview }
 
 services: # provider-typed sources of secret vars + rotation
@@ -81,7 +83,9 @@ Every variable is _declared_; what differs is where its value comes from — its
 resolved model:
 
 - **New format** — when `deployment/manifest.yml` exists, it is parsed into
-  `environments`, `deployments` (each with its explicit env→target map),
+  `environments`, `deployments` (each with its explicit env→target map and an
+  optional `projectId`/`teamId`
+  [project pin](env.md#pinning-the-vercel-project)),
   `services` (with an optional `environments` scope, and — for `firebase` — an
   optional field→var-name `variables` map that forms the
   [credential contract](secrets-rotation.md#firebase-credential-contract), and

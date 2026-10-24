@@ -53,7 +53,8 @@ export interface DeploymentProvider {
 }
 
 // The Vercel deployment provider — wraps VercelClient + deployments.ts, with
-// identity resolved from VERCEL_* env vars / .vercel/project.json. Delegation
+// identity resolved from the manifest pin, else VERCEL_* env vars /
+// .vercel/project.json (see detectProject). Delegation
 // keeps VercelClient's behavior (and its prototype, which the tests spy on)
 // unchanged.
 class VercelDeploymentProvider implements DeploymentProvider {
@@ -62,13 +63,13 @@ class VercelDeploymentProvider implements DeploymentProvider {
   readonly teamId: string | undefined;
   private readonly client: VercelClient;
 
-  constructor(workingDir: string) {
+  constructor(workingDir: string, deploymentDir?: string) {
     const token = resolveVercelToken();
     if (!token)
       throw new FatalError(
         "No Vercel token found. Set VERCEL_TOKEN or run 'vercel login' to authenticate.",
       );
-    const project = detectProject(workingDir);
+    const project = detectProject(workingDir, deploymentDir);
     this.projectId = project.projectId;
     this.teamId = project.teamId;
     this.client = new VercelClient(token, project.projectId, project.teamId);
@@ -128,6 +129,7 @@ class VercelDeploymentProvider implements DeploymentProvider {
 
 export function createVercelDeploymentProvider(
   workingDir: string,
+  deploymentDir?: string,
 ): DeploymentProvider {
-  return new VercelDeploymentProvider(workingDir);
+  return new VercelDeploymentProvider(workingDir, deploymentDir);
 }
