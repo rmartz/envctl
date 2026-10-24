@@ -46,8 +46,10 @@ is a third automatable source.
 
 `init` may return, and `ServiceRotation` may carry, an `activate()` hook: work
 the engine runs after the redeploy is `READY` and before invalidation, whether
-or not `--no-invalidate` is set. A source sets `explicitInit` to stay out of
-`init all`.
+or not `--no-invalidate` is set. An optional async `preflight(ctx)` runs for
+every acting source after the auth preflight and before anything is minted, for
+remote checks such as GitHub App webhook reachability. A source sets
+`explicitInit` to stay out of `init all`.
 
 Two optional members feed [`envctl check --live`](check.md):
 
@@ -125,7 +127,9 @@ service's `webhookUrl` names the URL the App's webhook points at.
 
 - `presenceKeys` and `contractVars` are the private key and webhook secret.
 - `authKey: "github-app"`: the preflight requires `--private-key-file` (a
-  readable RSA PEM), the Client ID, and `webhookUrl`.
+  readable RSA PEM), the Client ID, and `webhookUrl`. Its async `preflight`
+  then calls `GET /app/hook/config` as the App, so an inactive webhook (404) or
+  a rejected JWT (401) fails the run before any secret is minted (#203).
 - `init` pushes both secrets as sensitive vars; `rotate` re-mints the webhook
   secret and warns with the private key's manual steps. Both return an
   `activate()` that PATCHes `/app/hook/config`, so GitHub changes only after

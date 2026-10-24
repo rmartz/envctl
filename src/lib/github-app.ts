@@ -147,27 +147,55 @@ export function githubAppJwt(
   return `${header}.${payload}.${base64url(signature)}`;
 }
 
-/** Point the App's webhook at `url`, signed with `secret` (`PATCH /app/hook/config`). */
-export async function patchGithubAppHookConfig(
+// Call `/app/hook/config` as the App, mapping GitHub's telling statuses to an
+// actionable error (#203): a 404 means the App has no active webhook, a 401
+// that the JWT was rejected.
+async function githubAppHookRequest(
   jwt: string,
-  url: string,
-  secret: string,
+  method: "GET" | "PATCH",
+  body?: unknown,
 ): Promise<void> {
   const base = process.env.GITHUB_API_URL ?? "https://api.github.com";
   const res = await fetch(`${base}/app/hook/config`, {
-    method: "PATCH",
+    method,
     headers: {
       Authorization: `Bearer ${jwt}`,
       Accept: "application/vnd.github+json",
       "Content-Type": "application/json",
       "X-GitHub-Api-Version": "2022-11-28",
     },
-    body: JSON.stringify({ url, secret, content_type: "json" }),
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok)
-    throw new FatalError(
-      `GitHub API PATCH /app/hook/config failed (${res.status}): ${await res.text()}`,
+  if (res.ok) return;
+  if (res.status === 404)
+    err(
+      "The GitHub App's webhook is not active (GitHub returned 404 for /app/hook/config): enable it in the App's settings (check Active and set a URL), then run `envctl secrets rotate github-app`, or re-run `secrets init` if nothing was pushed yet.",
     );
+  if (res.status === 401)
+    err(
+      "GitHub rejected the App JWT (401): check that the Client ID in the deployment config belongs to the App whose private key you passed.",
+    );
+  throw new FatalError(
+    `GitHub API ${method} /app/hook/config failed (${res.status}): ${await res.text()}`,
+  );
+}
+
+/** Assert the App's webhook config is reachable as the App (`GET /app/hook/config`). */
+export function checkGithubAppHookConfig(jwt: string): Promise<void> {
+  return githubAppHookRequest(jwt, "GET");
+}
+
+/** Point the App's webhook at `url`, signed with `secret` (`PATCH /app/hook/config`). */
+export function patchGithubAppHookConfig(
+  jwt: string,
+  url: string,
+  secret: string,
+): Promise<void> {
+  return githubAppHookRequest(jwt, "PATCH", {
+    url,
+    secret,
+    content_type: "json",
+  });
 }
 
 /**

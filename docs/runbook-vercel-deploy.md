@@ -298,7 +298,10 @@ up by hand on the App's settings page: GitHub has no API for them.
 # 2. Put the public Client ID in deployment/production.yml and push it:
 #      MY_APP_CLIENT_ID: Iv23li…
 envctl config push --env production
-# 3. On the App's settings page, "Generate a private key" and save the PEM.
+# 3. On the App's settings page, "Generate a private key" and save the PEM,
+#    and under Webhook check "Active" (any URL; envctl replaces it). GitHub
+#    returns 404 for an App without an active webhook, and envctl refuses
+#    before pushing anything.
 # 4. Push both secrets, redeploy, then point the webhook at the deployment:
 envctl secrets init github-app --private-key-file ~/Downloads/my-app.pem
 # 5. Delete the PEM, or store it somewhere safe; rotation needs it again.

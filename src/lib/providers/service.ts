@@ -78,6 +78,11 @@ export interface ServiceProvider {
   contractVars?(ctx: ServiceContext): string[];
   /** Env vars whose values must differ across environments (e.g. a project id); `check --live` errors when two environments resolve to the same value. */
   isolatedVars?(ctx: ServiceContext): string[];
+  /**
+   * Remote checks run for every acting provider after the auth preflight and
+   * before anything is minted, so a failure leaves every system untouched.
+   */
+  preflight?(ctx: ServiceContext): Promise<void>;
   init(ctx: ServiceContext): Promise<ServiceActivation | void>;
   rotate(ctx: ServiceContext): Promise<ServiceRotation>;
 }

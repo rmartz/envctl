@@ -61,8 +61,13 @@ describe("run — github-app provider", () => {
   }
 
   // Mock Vercel (with `keys` live on production) and GitHub, recording the
-  // order of pushes, the redeploy, and the webhook PATCH in `events`.
-  async function mockServices(keys: string[], redeployFails = false) {
+  // order of the hook-config GET preflight, pushes, the redeploy, and the
+  // webhook PATCH in `events`. `hookStatus` is GitHub's hook-config status.
+  async function mockServices(
+    keys: string[],
+    redeployFails = false,
+    hookStatus = 200,
+  ) {
     const subprocess = await import("../lib/subprocess");
     vi.spyOn(subprocess, "commandExists").mockReturnValue(true);
     vi.spyOn(subprocess, "run").mockReturnValue("rmartz");
@@ -96,10 +101,14 @@ describe("run — github-app provider", () => {
       },
     );
     vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
-      events.push("patch");
-      const body = JSON.parse(init?.body as string) as { secret: string };
-      patchedSecrets.push(body.secret);
-      return Promise.resolve(new Response("{}", { status: 200 }));
+      if (init?.method === "PATCH") {
+        events.push("patch");
+        const body = JSON.parse(init.body as string) as { secret: string };
+        patchedSecrets.push(body.secret);
+      } else {
+        events.push("get");
+      }
+      return Promise.resolve(new Response("{}", { status: hookStatus }));
     });
   }
 
@@ -117,6 +126,7 @@ describe("run — github-app provider", () => {
       await mockServices([]);
       await run(opts({ init: "github-app" }));
       expect(events).toEqual([
+        "get",
         "push APP_PRIVATE_KEY production sensitive",
         "push APP_WEBHOOK_SECRET production sensitive",
         "redeploy",
@@ -161,6 +171,7 @@ describe("run — github-app provider", () => {
       await mockServices(["APP_PRIVATE_KEY", "APP_WEBHOOK_SECRET"]);
       await run(opts({ provider: "github-app" }));
       expect(events).toEqual([
+        "get",
         "push APP_WEBHOOK_SECRET production sensitive",
         "redeploy",
         "patch",
@@ -171,6 +182,7 @@ describe("run — github-app provider", () => {
       await mockServices(["APP_PRIVATE_KEY"]);
       await run(opts({ provider: "github-app" }));
       expect(events).toEqual([
+        "get",
         "push APP_WEBHOOK_SECRET production sensitive",
         "redeploy",
         "patch",
@@ -233,6 +245,14 @@ describe("run — github-app provider", () => {
         /set APP_CLIENT_ID/,
       );
       expect(events).toEqual([]);
+    });
+
+    it("fails before any push when the App's webhook is inactive", async () => {
+      await mockServices([], false, 404);
+      await expect(run(opts({ init: "github-app" }))).rejects.toThrow(
+        /webhook is not active/,
+      );
+      expect(events).toEqual(["get"]);
     });
   });
 });
