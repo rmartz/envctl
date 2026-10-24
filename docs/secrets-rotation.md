@@ -55,14 +55,29 @@ In a [multi-deployment manifest](manifest.md#deployment-views) (#215):
   that lists that service. `secrets rotate gate-app` therefore rotates the gate
   App's key in the gate project. A provider keyword with several services of
   that provider must be replaced by the service's name.
-- **Shared services need one deployment at a time.** A service several
-  deployments list (one Sentry shared by both) is refused without `--deployment`.
-  Acting on all of them at once is #216.
-- **Rotating a shared service would break the others.** Inside one deployment,
-  rotating a service it shares would invalidate a credential the other
-  deployments still use, so it is refused. That includes an unscoped `rotate`
-  that would reach it. Use `--no-invalidate`, which keeps the old credential
-  valid, or scope the rotation to an unshared service.
+- **A shared service runs across all its deployments.** Naming a service that
+  several deployments list (one Sentry shared by both), on the root without
+  `--deployment`, acts on all of them as one atomic run (#216). A fan-out
+  deployment provider ([`fan-out.ts`](../src/lib/providers/fan-out.ts)) wraps
+  their projects:
+  1. The credential is read from the first project and minted **once**.
+  2. Every write goes to **every** project, each through its own records.
+  3. Every project is redeployed in turn.
+  4. Only when all of them are READY do activation and invalidation run.
+- **A failed redeploy invalidates nothing.** If a redeploy fails, every project
+  already holds the new credential and the old one stays valid. The run stops
+  and reports which deployments were redeployed and which still need it.
+  Redeploy those, then rerun to retire the old credential.
+- **Some shared services are refused.** A shared run requires every sharing
+  deployment to map its environments to the same targets. A GitHub App shared
+  by several deployments is refused outright, since it has one webhook URL. A
+  shared run leaves generated variables alone (#219).
+- **Rotating a shared service under one deployment would break the others.**
+  With `--deployment`, rotating a service that deployment shares would
+  invalidate a credential the others still use, so it is refused. That
+  includes an unscoped `rotate` that would reach it. Rotate it across all of
+  them instead, use `--no-invalidate` (the old credential stays valid), or
+  scope the rotation to an unshared service.
 
 ## Rotate vs. init
 

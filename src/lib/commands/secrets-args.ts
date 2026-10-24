@@ -31,6 +31,10 @@ export interface SecretsOptions {
   // firebase|sentry|posthog|github-app positional). Undefined rotates every
   // present provider.
   provider?: ProviderKeyword;
+  // The other deployments sharing the selected service (#216), when the
+  // positional names a service several deployments list: the run fans out to
+  // all of them. `deploymentDir` is the first.
+  sharedDeploymentDirs?: string[];
   // `--private-key-file`: the GitHub App private key PEM (#201). The path is
   // the only thing envctl takes on the command line; the key is read from it.
   githubAppPrivateKeyFile?: string;
@@ -145,7 +149,7 @@ export function parseSecretsArgs(
   const dir = resolveDeploymentDir(workingDir, deploymentDir, deployment);
   const selected =
     target === undefined
-      ? { deploymentDir: dir, provider: undefined }
+      ? undefined
       : selectService(
           path.resolve(workingDir, deploymentDir),
           dir,
@@ -155,11 +159,14 @@ export function parseSecretsArgs(
   return {
     targetEnv,
     workingDir,
-    deploymentDir: selected.deploymentDir,
+    deploymentDir: selected?.deploymentDir ?? dir,
     invalidateKeys,
     refreshPreviews,
-    init: isInit ? (selected.provider ?? "auto") : undefined,
-    provider: isInit ? undefined : selected.provider,
+    init: isInit ? (selected?.provider ?? "auto") : undefined,
+    provider: isInit ? undefined : selected?.provider,
+    ...(selected?.sharedDirs
+      ? { sharedDeploymentDirs: selected.sharedDirs }
+      : {}),
     // A file the user names resolves against the shell's cwd, not -C.
     ...(githubAppPrivateKeyFile
       ? { githubAppPrivateKeyFile: path.resolve(githubAppPrivateKeyFile) }

@@ -140,11 +140,13 @@ describe("selecting a service on the command line", () => {
     });
   });
 
-  it("refuses a service several deployments share", () => {
+  it("selects every deployment that shares a service", () => {
     makeRoot(ROOT);
-    expect(() => selectService(root, root, false, "sentry")).toThrow(
-      /'sentry' is shared by deployments actor, gate/,
-    );
+    expect(selectService(root, root, false, "sentry")).toEqual({
+      deploymentDir: path.join(root, "actor"),
+      provider: "sentry",
+      sharedDirs: [path.join(root, "gate")],
+    });
   });
 
   it("asks for a name when a provider has several services", () => {

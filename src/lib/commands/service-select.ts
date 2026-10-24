@@ -1,11 +1,15 @@
 import * as path from "path";
 
+import { vercelTarget } from "../environments";
+import { GITHUB_APP_PROVIDER } from "../github-app";
 import { err } from "../logger";
 import {
   deploymentsReached,
   deploymentView,
   parseManifest,
   sharedServices,
+  type DeploymentDecl,
+  type ResolvedManifest,
   type ServiceDecl,
 } from "../manifest";
 
@@ -49,30 +53,31 @@ function providerOf(service: ServiceDecl): ProviderKeyword {
 // Resolve a secrets command's positional service against the manifest: the
 // deployment dir to act on and the provider to drive. Run on the root of a
 // multi-deployment manifest without --deployment, the service picks the
-// deployment, if only one lists it. Acting on a service several deployments
-// share is refused until shared rotation lands (#216).
+// deployment that lists it; a service several deployments share selects all
+// of them (#216): the first is the run's primary, the rest `sharedDirs`.
 export function selectService(
   baseDir: string,
   deploymentDir: string,
   deploymentChosen: boolean,
   target: string,
-): { deploymentDir: string; provider: ProviderKeyword } {
+): {
+  deploymentDir: string;
+  provider: ProviderKeyword;
+  sharedDirs?: string[];
+} {
   const root = parseManifest(baseDir);
   if (!deploymentChosen && root.deployments.length > 1) {
     const service =
       findService(root.services, target) ??
       err(`No service '${target}' is declared in ${baseDir}/manifest.yml.`);
     const reached = deploymentsReached(root, service.name);
-    if (reached.length !== 1)
-      return err(
-        reached.length === 0
-          ? `No deployment lists service '${service.name}'.`
-          : `Service '${service.name}' is shared by deployments ${reached.map((d) => d.name).join(", ")}; select one with --deployment <name>. Acting on all of them at once is not supported yet (#216).`,
-      );
-    return {
-      deploymentDir: path.join(baseDir, reached[0]?.name ?? ""),
-      provider: providerOf(service),
-    };
+    const [first, ...rest] = reached.map((d) => path.join(baseDir, d.name));
+    if (first === undefined)
+      return err(`No deployment lists service '${service.name}'.`);
+    const provider = providerOf(service);
+    if (rest.length === 0) return { deploymentDir: first, provider };
+    assertShareable(root, service, reached);
+    return { deploymentDir: first, provider, sharedDirs: rest };
   }
   if (isProviderKeyword(target)) return { deploymentDir, provider: target };
   const services = parseManifest(deploymentDir).services;
@@ -82,6 +87,31 @@ export function selectService(
       `No service '${target}' reaches this deployment (services: ${services.map((s) => s.name).join(", ") || "none"}).`,
     );
   return { deploymentDir, provider: providerOf(service) };
+}
+
+// A shared-service run writes one credential to every project, so they must
+// agree on where it goes: the same provider targets for the same environments.
+// A GitHub App can't be shared at all — it has one webhook URL.
+function assertShareable(
+  root: ResolvedManifest,
+  service: ServiceDecl,
+  deployments: readonly DeploymentDecl[],
+): void {
+  if (service.provider === GITHUB_APP_PROVIDER)
+    err(
+      `Service '${service.name}' is a GitHub App listed by several deployments (${deployments.map((d) => d.name).join(", ")}); an App has one webhook URL, so give each deployment its own App.`,
+    );
+  const targetsOf = (d: DeploymentDecl): string =>
+    JSON.stringify(
+      [...(d.environments ?? root.environments)]
+        .sort()
+        .map((env) => [env, d.targets[env] ?? vercelTarget(env)]),
+    );
+  const [first, ...rest] = deployments;
+  if (first && rest.some((d) => targetsOf(d) !== targetsOf(first)))
+    err(
+      `Deployments sharing service '${service.name}' (${deployments.map((d) => d.name).join(", ")}) map their environments to different targets; a shared credential needs them to match. Run it per deployment with --deployment instead.`,
+    );
 }
 
 // Refuses a rotation that would invalidate a credential another deployment
@@ -104,6 +134,6 @@ export function assertNoSharedRotation(
       .map((s) => `'${s.service.name}' (shared with ${s.with.join(", ")})`)
       .join(
         "; ",
-      )}. Rotate with --no-invalidate, scope the rotation to an unshared service, or wait for shared rotation (#216).`,
+      )}. Rotate it across every deployment instead (name the service, run on the root without --deployment), rotate with --no-invalidate, or scope the rotation to an unshared service.`,
   );
 }

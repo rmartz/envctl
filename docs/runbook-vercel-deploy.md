@@ -225,6 +225,14 @@ envctl secrets rotate --refresh-previews    # also redeploy warm PR previews
   useful for a staged rollout.
 - **`--refresh-previews`** redeploys active PR previews so their warm instances
   pick up the new credential.
+- **Several deployments in one manifest** — name the service:
+  `envctl secrets rotate gate-app` acts on the deployment that lists it. A
+  service several deployments share (`envctl secrets rotate sentry`) rotates
+  across all of them at once. It mints once, writes to every project and
+  redeploys each, and invalidates only after all are `READY`. If a redeploy
+  fails, nothing is invalidated, and the error lists which deployments still
+  need a redeploy. See
+  [shared services](secrets-rotation.md#shared-services-across-deployments).
 
 **How you know it worked:** each target's redeploy reaches Vercel `READY` and,
 unless `--no-invalidate`, the old key is deleted (with `--no-invalidate`, the old

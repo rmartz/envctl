@@ -198,12 +198,12 @@ deployment lists none ([`routing.ts`](../src/lib/manifest/routing.ts), #215):
   variable on that project owned only by a service the deployment doesn't
   list, such as the other App's private key.
 - **Secrets commands route by service.** They select the deployment through the
-  service and refuse to rotate a shared one under a single deployment; see
+  service, act on a shared service across all its deployments at once, and
+  refuse to rotate a shared one under a single deployment; see
   [shared services](secrets-rotation.md#shared-services-across-deployments).
 
-**Not yet:** acting on one service across several deployments at once, and
-minting a top-level generated variable once for all of them. Today each
-deployment's run mints its own value. Both are #216.
+**Not yet:** minting a top-level generated variable once for all deployments.
+Today each deployment's run mints its own value (#219).
 
 [`effectiveValue(manifest, env, name)`](../src/lib/manifest/resolve.ts) resolves
 a variable's literal value for an environment: a per-env overlay override wins
