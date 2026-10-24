@@ -33,19 +33,20 @@ Implemented in [`check.ts`](../src/lib/check.ts) (`checkStatic`), reusing the
 existing manifest reader, the [env→target resolver](env.md) (#87), and the
 [provider registries](providers.md):
 
-| Check                     | Rule                                                                                                                                          | Severity |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Config present            | `deployment/` has a `manifest.yml` or legacy `environments.yml`                                                                               | error    |
-| Manifest parses           | `manifest.yml` is valid YAML (a parse failure is reported, not thrown)                                                                        | error    |
-| Environments resolve      | every declared environment resolves to a valid provider target                                                                                | error    |
-| Deployment target mapping | each `deployments[].targets` key is a declared environment; each value is valid for the provider                                              | error    |
-| Overlay ↔ declaration     | every `deployment/<env>.yml` overlay matches a declared environment (no orphan overlays)                                                      | error    |
-| Providers registered      | every deployment and service `provider:` is registered                                                                                        | error    |
-| Scopes                    | service / variable-group `environments:` reference only declared environments                                                                 | error    |
-| Provider identity         | the Vercel identity resolves (manifest pin, `.vercel/project.json` or `VERCEL_PROJECT_ID`)                                                    | warning  |
-| Deployments and services  | names are unique and plain, deployments reference only declared services and environments, and each receives at most one service per provider | error    |
-| Service variables         | no two services of different providers write the same variable on one deployment ([routing](manifest.md#service-routing))                     | error    |
-| Pin agreement             | a manifest `projectId`/`teamId` pin matches the `.vercel` link and the `VERCEL_*` vars                                                        | error    |
+| Check                     | Rule                                                                                                                                                                                       | Severity |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| Config present            | `deployment/` has a `manifest.yml` or legacy `environments.yml`                                                                                                                            | error    |
+| Manifest parses           | `manifest.yml` is valid YAML (a parse failure is reported, not thrown)                                                                                                                     | error    |
+| Environments resolve      | every declared environment resolves to a valid provider target                                                                                                                             | error    |
+| Deployment target mapping | each `deployments[].targets` key is a declared environment; each value is valid for the provider                                                                                           | error    |
+| Overlay ↔ declaration     | every `deployment/<env>.yml` overlay matches a declared environment (no orphan overlays)                                                                                                   | error    |
+| Providers registered      | every deployment and service `provider:` is registered                                                                                                                                     | error    |
+| Scopes                    | service / variable-group `environments:` reference only declared environments                                                                                                              | error    |
+| Provider identity         | the Vercel identity resolves (manifest pin, `.vercel/project.json` or `VERCEL_PROJECT_ID`)                                                                                                 | warning  |
+| Deployments and services  | names are unique and plain, deployments reference only declared services and environments, and each receives at most one service per provider                                              | error    |
+| Service variables         | no two services of different providers write the same variable on one deployment ([routing](manifest.md#service-routing))                                                                  | error    |
+| GitHub secret scope       | in a multi-deployment manifest, a `github.secrets` entry names a declared deployment, or its variable is pushed by only one ([per deployment](secrets-rotation.md#github-actions-secrets)) | error    |
+| Pin agreement             | a manifest `projectId`/`teamId` pin matches the `.vercel` link and the `VERCEL_*` vars                                                                                                     | error    |
 
 Provider identity is a **warning**, not an error: a manifest is still valid
 without local Vercel linkage — identity is only needed once you actually push or

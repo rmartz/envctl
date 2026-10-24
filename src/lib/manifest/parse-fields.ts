@@ -130,7 +130,7 @@ export function parseGithub(raw: unknown): GithubDecl | undefined {
   const secrets: GithubSecretDecl[] = [];
   for (const item of Array.isArray(raw.secrets) ? raw.secrets : []) {
     if (!isRecord(item)) continue;
-    const { variable, environment, name, githubEnvironment } = item;
+    const { variable, environment, name, githubEnvironment, deployment } = item;
     if (typeof variable !== "string" || typeof environment !== "string")
       continue;
     secrets.push({
@@ -138,6 +138,7 @@ export function parseGithub(raw: unknown): GithubDecl | undefined {
       environment,
       ...(typeof name === "string" ? { name } : {}),
       ...(typeof githubEnvironment === "string" ? { githubEnvironment } : {}),
+      ...(typeof deployment === "string" ? { deployment } : {}),
     });
   }
   return typeof raw.repo === "string"

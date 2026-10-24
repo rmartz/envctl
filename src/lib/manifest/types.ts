@@ -71,6 +71,11 @@ export interface GithubSecretDecl {
   readonly name?: string;
   /** GitHub Actions environment to scope the secret to; unset ⇒ repository. */
   readonly githubEnvironment?: string;
+  /**
+   * In a multi-deployment manifest, the deployment whose pushes mirror to this
+   * secret (#217); unset ⇒ every deployment that pushes the variable.
+   */
+  readonly deployment?: string;
 }
 
 /** The secondary GitHub Actions secret sink. */

@@ -272,6 +272,7 @@ github:
       environment: staging
       name: STAGING_FIREBASE_PRIVATE_KEY # optional; default: the variable name
       githubEnvironment: e2e # optional; default: a repository secret
+      deployment: gate # multi-deployment manifests; default: every deployment
 ```
 
 [`github-secrets.ts`](../src/lib/github-secrets.ts) wraps the deployment
@@ -290,6 +291,13 @@ list.
 - **Verification.** GitHub secrets can't be read back, so "proven working"
   only means the write succeeded. [`check --live`](check.md) reports a declared
   secret that's missing.
+- **Per deployment (#217).** In a
+  [multi-deployment manifest](manifest.md#deployment-views), an entry with
+  `deployment` mirrors only that deployment's pushes. One without it mirrors
+  every deployment that pushes the variable. `check` therefore errors when
+  more than one deployment pushes an unscoped entry's variable, since
+  whichever ran last would overwrite the secret. It also errors when an entry
+  names an undeclared deployment.
 
 ## PostHog (manual rotation)
 
