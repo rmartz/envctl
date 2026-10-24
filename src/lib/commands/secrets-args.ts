@@ -5,6 +5,7 @@ import {
   DEPLOYMENT_FLAGS_USAGE,
   resolveDeploymentDir,
 } from "./deployment-select";
+import { selectService, type ProviderKeyword } from "./service-select";
 
 // Resolved options for `secrets rotate` / `secrets init`. `deploymentDir` is
 // absolute (resolved against the project root) by the time it reaches the
@@ -25,11 +26,11 @@ export interface SecretsOptions {
   refreshPreviews: boolean;
   // Bootstrap mode: undefined = rotate existing secrets; "auto" = detect from
   // deployment config; otherwise the specific service to initialize.
-  init?: "all" | "auto" | "firebase" | "sentry" | "posthog" | "github-app";
+  init?: "all" | "auto" | ProviderKeyword;
   // Rotate mode only: restrict the run to a single provider (the leading
   // firebase|sentry|posthog|github-app positional). Undefined rotates every
   // present provider.
-  provider?: "firebase" | "sentry" | "posthog" | "github-app";
+  provider?: ProviderKeyword;
   // `--private-key-file`: the GitHub App private key PEM (#201). The path is
   // the only thing envctl takes on the command line; the key is read from it.
   githubAppPrivateKeyFile?: string;
@@ -45,9 +46,12 @@ project. Auth for every provider to be rotated is checked up front, so an
 unauthenticated provider fails fast instead of leaving a partial rotation.
 
 ARGUMENTS:
-  firebase | sentry | posthog | github-app
-                           Restrict the rotation to a single provider
-                           (default: every provider present in the project).
+  firebase | sentry | posthog | github-app | <service>
+                           Restrict the rotation to a single provider, or to
+                           a service named in the manifest (default: every
+                           provider present in the project). On the root of a
+                           multi-deployment manifest, a service selects the
+                           deployment that lists it.
                            PostHog's personal API key is rotated by hand —
                            naming it prints the manual steps. github-app
                            pushes the --private-key-file key and a new
@@ -73,8 +77,9 @@ service to auto-detect which to initialize from the deployment config. Fails if
 the target secrets already exist in the Vercel project.
 
 ARGUMENTS:
-  firebase | sentry | posthog | github-app
-                           Service to initialize (default: auto-detect).
+  firebase | sentry | posthog | github-app | <service>
+                           Service to initialize, by provider or by its
+                           manifest name (default: auto-detect).
                            PostHog is manual-only — naming it prints the steps
 
 OPTIONS:
@@ -101,9 +106,7 @@ export function parseSecretsArgs(
   let deployment: string | undefined;
   let invalidateKeys = true;
   let refreshPreviews = false;
-  let init: SecretsOptions["init"] = isInit ? "auto" : undefined;
-  let provider: SecretsOptions["provider"];
-  let providerTargetSet = false;
+  let target: string | undefined;
   let githubAppPrivateKeyFile: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
@@ -129,32 +132,34 @@ export function parseSecretsArgs(
     } else if (arg === "-h" || arg === "--help") {
       console.log(isInit ? INIT_USAGE : ROTATE_USAGE);
       process.exit(0);
-    } else if (
-      !providerTargetSet &&
-      (arg === "firebase" ||
-        arg === "sentry" ||
-        arg === "posthog" ||
-        arg === "github-app")
-    ) {
-      // A leading firebase|sentry|posthog positional selects the init target in init
-      // mode, or scopes the rotation to that provider in rotate mode.
-      if (isInit) init = arg;
-      else provider = arg;
-      providerTargetSet = true;
+    } else if (target === undefined && !arg.startsWith("-")) {
+      // A positional names the service: the init target in init mode, or the
+      // rotation's scope in rotate mode (#215).
+      target = arg;
     } else {
       const cmd = isInit ? "secrets init" : "secrets rotate";
       err(`Unknown option: ${arg}. Run 'envctl ${cmd} --help' for usage.`);
     }
   }
 
+  const dir = resolveDeploymentDir(workingDir, deploymentDir, deployment);
+  const selected =
+    target === undefined
+      ? { deploymentDir: dir, provider: undefined }
+      : selectService(
+          path.resolve(workingDir, deploymentDir),
+          dir,
+          deployment !== undefined,
+          target,
+        );
   return {
     targetEnv,
     workingDir,
-    deploymentDir: resolveDeploymentDir(workingDir, deploymentDir, deployment),
+    deploymentDir: selected.deploymentDir,
     invalidateKeys,
     refreshPreviews,
-    init,
-    provider,
+    init: isInit ? (selected.provider ?? "auto") : undefined,
+    provider: isInit ? undefined : selected.provider,
     // A file the user names resolves against the shell's cwd, not -C.
     ...(githubAppPrivateKeyFile
       ? { githubAppPrivateKeyFile: path.resolve(githubAppPrivateKeyFile) }

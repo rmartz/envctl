@@ -33,18 +33,19 @@ Implemented in [`check.ts`](../src/lib/check.ts) (`checkStatic`), reusing the
 existing manifest reader, the [env→target resolver](env.md) (#87), and the
 [provider registries](providers.md):
 
-| Check                     | Rule                                                                                                                    | Severity |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------- |
-| Config present            | `deployment/` has a `manifest.yml` or legacy `environments.yml`                                                         | error    |
-| Manifest parses           | `manifest.yml` is valid YAML (a parse failure is reported, not thrown)                                                  | error    |
-| Environments resolve      | every declared environment resolves to a valid provider target                                                          | error    |
-| Deployment target mapping | each `deployments[].targets` key is a declared environment; each value is valid for the provider                        | error    |
-| Overlay ↔ declaration     | every `deployment/<env>.yml` overlay matches a declared environment (no orphan overlays)                                | error    |
-| Providers registered      | every deployment and service `provider:` is registered                                                                  | error    |
-| Scopes                    | service / variable-group `environments:` reference only declared environments                                           | error    |
-| Provider identity         | the Vercel identity resolves (manifest pin, `.vercel/project.json` or `VERCEL_PROJECT_ID`)                              | warning  |
-| Deployments and services  | names are unique, deployments reference only declared services and environments, and at most one deployment is declared | error    |
-| Pin agreement             | a manifest `projectId`/`teamId` pin matches the `.vercel` link and the `VERCEL_*` vars                                  | error    |
+| Check                     | Rule                                                                                                                                          | Severity |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Config present            | `deployment/` has a `manifest.yml` or legacy `environments.yml`                                                                               | error    |
+| Manifest parses           | `manifest.yml` is valid YAML (a parse failure is reported, not thrown)                                                                        | error    |
+| Environments resolve      | every declared environment resolves to a valid provider target                                                                                | error    |
+| Deployment target mapping | each `deployments[].targets` key is a declared environment; each value is valid for the provider                                              | error    |
+| Overlay ↔ declaration     | every `deployment/<env>.yml` overlay matches a declared environment (no orphan overlays)                                                      | error    |
+| Providers registered      | every deployment and service `provider:` is registered                                                                                        | error    |
+| Scopes                    | service / variable-group `environments:` reference only declared environments                                                                 | error    |
+| Provider identity         | the Vercel identity resolves (manifest pin, `.vercel/project.json` or `VERCEL_PROJECT_ID`)                                                    | warning  |
+| Deployments and services  | names are unique and plain, deployments reference only declared services and environments, and each receives at most one service per provider | error    |
+| Service variables         | no two services of different providers write the same variable on one deployment ([routing](manifest.md#service-routing))                     | error    |
+| Pin agreement             | a manifest `projectId`/`teamId` pin matches the `.vercel` link and the `VERCEL_*` vars                                                        | error    |
 
 Provider identity is a **warning**, not an error: a manifest is still valid
 without local Vercel linkage — identity is only needed once you actually push or
@@ -57,7 +58,9 @@ or the env vars is an **error**, because every write command would refuse it.
 reconciliation against the deployment provider, behind the `--live` flag because
 it requires **network + auth**. It resolves the project's deployment provider and
 lists the live env vars once. If auth or project identity is missing, it reports
-a single skipped-with-reason finding instead of crashing.
+a single skipped-with-reason finding instead of crashing. A multi-deployment
+root is reconciled one deployment at a time, through each
+[view](manifest.md#deployment-views), with findings prefixed by the deployment.
 
 **Required-variable completeness** ([`check-completeness.ts`](../src/lib/check-completeness.ts),
 #175) compares every environment's target against its **declared set**: the
@@ -67,11 +70,12 @@ secrets included), its overlay keys, and the contract vars
 every service scoped to it. A target that silently lacks a credential still
 builds READY and ships a broken app, so:
 
-| Finding     | Rule                                                                        | Severity |
-| ----------- | --------------------------------------------------------------------------- | -------- |
-| `missing`   | declared for the environment but absent on its target                       | error    |
-| `orphaned`  | present on a checked target but declared by no environment mapping to it    | warning  |
-| `collision` | a service's isolated var resolves to the same value on two distinct targets | error    |
+| Finding     | Rule                                                                                   | Severity |
+| ----------- | -------------------------------------------------------------------------------------- | -------- |
+| `missing`   | declared for the environment but absent on its target                                  | error    |
+| `orphaned`  | present on a checked target but declared by no environment mapping to it               | warning  |
+| `collision` | a service's isolated var resolves to the same value on two distinct targets            | error    |
+| `foreign`   | a deployment's project holds a variable owned only by a service it doesn't list (#215) | error    |
 
 - A missing variable is an **error** (before #175 a missing public variable was
   only a drift warning).
@@ -122,7 +126,7 @@ value. If a repo or environment's secrets can't be listed, for example because
 
 `--json` replaces the human report with a JSON array on stdout, one object per
 finding — `{ severity, kind, env?, target?, key?, message }`. `kind` names the
-rule (`missing`, `orphaned`, `collision`, `collision-skipped`), or `general` for
+rule (`missing`, `orphaned`, `collision`, `collision-skipped`, `foreign`), or `general` for
 findings that carry no structured context. The command still exits non-zero
 when any finding is an error, so it can gate CI or a release.
 

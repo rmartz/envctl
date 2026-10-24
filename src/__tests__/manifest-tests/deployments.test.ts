@@ -210,6 +210,9 @@ describe("check with named deployments", () => {
       checkStatic(workingDir)
         .filter((f) => f.severity === "error")
         .map((f) => f.message),
-    ).toEqual([expect.stringMatching(/service name 'github-app'/)]);
+    ).toEqual([
+      expect.stringMatching(/service name 'github-app'/),
+      expect.stringMatching(/receives more than one github-app service/),
+    ]);
   });
 });

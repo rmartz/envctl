@@ -12,9 +12,13 @@ import {
   patchGithubAppHookConfig,
 } from "../github-app-api";
 import { err, log } from "../logger";
-import type { ServiceContext, ServiceProvider } from "./service";
+import type {
+  ServiceContext,
+  ServiceProvider,
+  ServiceVarContext,
+} from "./service";
 
-const varsOf = (ctx: ServiceContext) =>
+const varsOf = (ctx: ServiceVarContext) =>
   ctx.githubApp?.vars ?? resolveGithubAppVars();
 
 // The config the acting provider needs; the auth preflight has already

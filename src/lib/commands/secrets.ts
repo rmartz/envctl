@@ -15,6 +15,7 @@ import {
   resolveEnvList,
 } from "./env-plan";
 import { parseSecretsArgs, type SecretsOptions } from "./secrets-args";
+import { assertNoSharedRotation } from "./service-select";
 import { dispatchRotation, runWithGeneratedSecrets } from "./secrets-dispatch";
 import {
   detectConfiguredServices,
@@ -76,6 +77,10 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
   // secrets included — is written.
   if (init === "posthog" || opts.provider === "posthog")
     err(posthogManualSteps(posthogVarsFor(opts.deploymentDir)));
+  // Rotating a credential another deployment shares would invalidate it under
+  // that deployment (#215).
+  if (!isInit && opts.invalidateKeys)
+    assertNoSharedRotation(opts.deploymentDir, opts.provider);
   const named = opts.provider ?? init;
   for (const provider of named === "all"
     ? ["firebase", "sentry"]
