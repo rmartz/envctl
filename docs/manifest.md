@@ -202,8 +202,10 @@ deployment lists none ([`routing.ts`](../src/lib/manifest/routing.ts), #215):
   refuse to rotate a shared one under a single deployment; see
   [shared services](secrets-rotation.md#shared-services-across-deployments).
 
-**Not yet:** minting a top-level generated variable once for all deployments.
-Today each deployment's run mints its own value (#219).
+- **Generated variables follow their declaration.** A `generate: true`
+  variable declared at the root (top level or a root group) has one value
+  across every deployment. One declared under a deployment stays its own; see
+  [shared generated secrets](secrets-rotation.md#shared-across-deployments).
 
 [`effectiveValue(manifest, env, name)`](../src/lib/manifest/resolve.ts) resolves
 a variable's literal value for an environment: a per-env overlay override wins

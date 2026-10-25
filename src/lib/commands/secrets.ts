@@ -111,7 +111,8 @@ export async function runSecrets(opts: SecretsOptions): Promise<void> {
   );
   if (generated.length === 0 || shared.length > 0) {
     // A shared-service run acts on that service alone; generated variables
-    // stay per deployment until #219.
+    // are rotated by each deployment's own run, which keeps shared ones in
+    // step across deployments (#219).
     if (generated.length > 0)
       log(
         "Generated variables are left unchanged by a shared-service run; rotate them per deployment.",
