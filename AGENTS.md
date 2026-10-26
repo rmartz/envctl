@@ -40,8 +40,9 @@ bumps of the pinned action.
 
 The read-only PR content policy checks (such as CI-loosening detection) run via [`rmartz/pr-policy-action`](https://github.com/rmartz/pr-policy-action)
 in [`pr-policy.yml`](.github/workflows/pr-policy.yml), which posts the
-`pr-policy` check. It passes `skip-uat: true`: envctl is a CLI with nothing to
-user-test, so the UAT gate is off.
+`pr-policy` check. It passes `skip-uat: true`: envctl skips UAT by choice
+(the CLI it ships is user-facing, so this is a decision, not a claim there's
+nothing to test).
 
 [`pr-lifecycle.yml`](.github/workflows/pr-lifecycle.yml) runs
 [`rmartz/pr-lifecycle-action`](https://github.com/rmartz/pr-lifecycle-action)
