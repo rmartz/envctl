@@ -137,7 +137,7 @@ modules is still fine.
   Prettier minor bump that required reformatting showed no `package.json` change.
 
   This applies to caret (`^`) and tilde (`~`) ranges as well as exact pins. The
-  `engines` field (minimum-version constraints like `node: ">=18"`) is exempt —
+  `engines` field (minimum-version constraints like `node: ">=26"`) is exempt —
   it is a compatibility floor, not a dependency pin.
 
   Enforced by the `package-pins` check in
