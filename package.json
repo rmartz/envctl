@@ -20,7 +20,7 @@
     "envctl": "dist/envctl.js"
   },
   "engines": {
-    "node": ">=18",
+    "node": ">=26",
     "pnpm": ">=9"
   },
   "scripts": {
