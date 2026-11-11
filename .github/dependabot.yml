@@ -13,6 +13,13 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    ignore:
+      # @types/node tracks the Node runtime's major, which Dependabot never bumps
+      # (the setup action's `node-version: 24.x` and `engines.node`). A lone types
+      # major would type-check APIs the runtime lacks, so it moves by hand with
+      # the runtime upgrade. Minors and patches still flow.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     # Group minor and patch bumps into one PR per dependency type. Major bumps
     # outside a version-locked family match no group and are raised as individual
     # PRs, since they are the most likely to need a code change and warrant
