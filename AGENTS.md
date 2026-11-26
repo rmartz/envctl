@@ -44,9 +44,8 @@ in [`pr-policy.yml`](.github/workflows/pr-policy.yml), which posts the
 (the CLI it ships is user-facing, so this is a decision, not a claim there's
 nothing to test).
 
-[`pr-lifecycle.yml`](.github/workflows/pr-lifecycle.yml) runs
-[`rmartz/pr-lifecycle-action`](https://github.com/rmartz/pr-lifecycle-action)
-without arming, with `uat: 'off'` matching `skip-uat`: it keeps each PR's lifecycle labels current, marks every PR `no UAT needed`, and posts the `pr-lifecycle/sign-off` status (as the `rmartz-pr-lifecycle` App, which the `pr-policy` caller trusts). `bot-automerge.yml` still does the merging.
+[`bot-automerge.yml`](.github/workflows/bot-automerge.yml) arms auto-merge on
+eligible bot PRs. Each other PR is driven to merge by the session that opened it.
 
 ## Agent Directive Files
 
