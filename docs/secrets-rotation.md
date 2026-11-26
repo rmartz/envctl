@@ -370,9 +370,9 @@ services:
     environments: [production] # optional scope
     webhookUrl: https://my-app.vercel.app/api/webhook
     variables: # optional renames; defaults shown in the table
-      clientId: PR_LIFECYCLE_CLIENT_ID
-      privateKey: PR_LIFECYCLE_PRIVATE_KEY
-      webhookSecret: PR_LIFECYCLE_WEBHOOK_SECRET
+      clientId: MY_APP_CLIENT_ID
+      privateKey: MY_APP_PRIVATE_KEY
+      webhookSecret: MY_APP_WEBHOOK_SECRET
 ```
 
 | Field           | Default var                 | Kind                                       |

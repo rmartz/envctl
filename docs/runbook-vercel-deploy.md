@@ -294,10 +294,9 @@ environment its own project. The next build picks up the vars, since
 
 ### D3. Set up a Vercel-hosted GitHub App server
 
-For a GitHub App whose webhook server runs on Vercel (for example
-`rmartz/pr-lifecycle-app`). envctl pushes the App's private key and a generated
-webhook secret as sensitive vars, and points the App's webhook at the
-deployment. The App itself, its permissions and its event subscriptions are set
+For a GitHub App whose webhook server runs on Vercel. envctl pushes the App's
+private key and a generated webhook secret as sensitive vars, and points the
+App's webhook at the deployment. The App itself, its permissions and its event subscriptions are set
 up by hand on the App's settings page: GitHub has no API for them.
 
 ```bash
