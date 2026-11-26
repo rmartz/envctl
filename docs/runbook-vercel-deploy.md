@@ -296,8 +296,9 @@ environment its own project. The next build picks up the vars, since
 
 For a GitHub App whose webhook server runs on Vercel. envctl pushes the App's
 private key and a generated webhook secret as sensitive vars, and points the
-App's webhook at the deployment. The App itself, its permissions and its event subscriptions are set
-up by hand on the App's settings page: GitHub has no API for them.
+App's webhook at the deployment. The App itself, its permissions and its event
+subscriptions are set up by hand on the App's settings page: GitHub has no API
+for them.
 
 ```bash
 # 1. Declare the service in deployment/manifest.yml:
