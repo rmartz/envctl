@@ -50,9 +50,9 @@ updates:
       ci:
         # CI-sensitive tools in one group: pr-policy requires a `ci` title for any
         # eslint/prettier version change (the formatter/linter can fail files a PR
-        # never touched — a Prettier minor can require reformatting, see
-        # trip-split#114), so they must not ride in a catch-all where they would
-        # block every routine bump. Plugins and configs move in lockstep with their
+        # never touched — a Prettier minor can require reformatting), so they must
+        # not ride in a catch-all where they would block every routine bump.
+        # Plugins and configs move in lockstep with their
         # tool: eslint + @eslint/js share a version line; typescript-eslint and
         # globals track the eslint major. The exception to the major-only rule
         # above: no update-types filter, so a major brings its family with it and

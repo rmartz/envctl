@@ -131,9 +131,8 @@ modules is still fine.
   leaves `package.json` untouched — making the dependency change invisible in a
   `package.json` diff. A full pin (`^3.8.4`) forces every bump to also bump the
   `package.json` specifier, so the update is explicitly visible and reviewable.
-  This is exactly the failure seen in
-  [trip-split#114](https://github.com/rmartz/trip-split/pull/114), where a
-  Prettier minor bump that required reformatting showed no `package.json` change.
+  This has happened before: a Prettier minor bump that required reformatting
+  showed no `package.json` change.
 
   This applies to caret (`^`) and tilde (`~`) ranges as well as exact pins. The
   `engines` field (minimum-version constraints like `node: ">=26"`) is exempt —

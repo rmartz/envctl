@@ -20,7 +20,7 @@ and the atomic mint→deploy→verify→invalidate engine
 follow the links to understand _how it happens_.
 
 > This runbook replaces the retired predecessor guidance (the `sync-env` skill
-> pointing at `vercel-deploy-scripts`). That library is no longer available; use
+> and its deploy-scripts package). That package is no longer available; use
 > envctl and this page instead.
 
 ## Orientation & mental model
