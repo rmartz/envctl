@@ -2,7 +2,7 @@
 /**
  * File-length ratchet — the CI backstop behind ESLint's `max-lines`.
  *
- * Port of the dotfiles / ai-tools ratchet, as a node-native script so it needs
+ * Port of the ai-tools ratchet, as a node-native script so it needs
  * no extra runtime dependency. A changed `.ts` file fails only if it is over
  * the limit AND the change grows it (or leaves it unchanged) vs. the merge
  * base; reducing an oversized file always passes, because progress toward a

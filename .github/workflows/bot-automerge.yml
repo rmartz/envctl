@@ -43,6 +43,6 @@ jobs:
           # workflows, so a bot merge would reach main with no push-triggered CI,
           # release, or merge-safety run (rmartz/bot-automerge-action#31).
           # App-authored events do trigger them, and the App has its own
-          # rate-limit pool, separate from the user's (rmartz/scripts#22). The
+          # rate-limit pool, separate from the user's. The
           # token step fails closed if the App secrets are missing.
           token: ${{ steps.app-token.outputs.token }}
